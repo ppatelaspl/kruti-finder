@@ -57,6 +57,6 @@ if sys.platform == "darwin":
             "CFBundleShortVersionString": VERSION,
             "CFBundleVersion": VERSION,
             "NSHighResolutionCapable": True,
-            "LSMinimumSystemVersion": "14.0",
+            "LSMinimumSystemVersion": "11.0",   # every Apple-silicon Mac
         },
     )

@@ -51,6 +51,15 @@ def configure_ocr(cfg: dict) -> dict:
         status["message"] = "Tesseract OCR not found. Scanned pages cannot be read."
         return status
     pytesseract.pytesseract.tesseract_cmd = cmd
+    if sys.platform.startswith("linux") and getattr(sys, "frozen", False):
+        # The app's launcher points LD_LIBRARY_PATH at the libraries bundled in the app.
+        # The distro's Tesseract must use the distro's own (e.g. a newer libstdc++), so
+        # give child processes the user's original setting back.
+        orig = os.environ.get("LD_LIBRARY_PATH_ORIG")
+        if orig:
+            os.environ["LD_LIBRARY_PATH"] = orig
+        else:
+            os.environ.pop("LD_LIBRARY_PATH", None)
     try:
         kwargs = {"capture_output": True, "text": True, "timeout": 30}
         if sys.platform == "win32":

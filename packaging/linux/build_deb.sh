@@ -36,5 +36,6 @@ Description: Kruti Finder
  Kruti found in the books that are not yet in the Excel.
 CTRL
 mkdir -p dist/installers
-dpkg-deb --build --root-owner-group "$PKG" "dist/installers/kruti-finder_${VERSION}_amd64.deb"
+# xz, not the zstd default of newer dpkg: older dpkg (Debian 11, LMDE) cannot read zstd
+dpkg-deb -Zxz --build --root-owner-group "$PKG" "dist/installers/kruti-finder_${VERSION}_amd64.deb"
 echo "Built dist/installers/kruti-finder_${VERSION}_amd64.deb"

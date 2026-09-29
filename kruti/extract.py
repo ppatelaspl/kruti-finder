@@ -19,6 +19,7 @@ import pymupdf
 
 log = logging.getLogger(__name__)
 CACHE_VERSION = 3
+_USER_OMP_LIMIT = os.environ.get("OMP_THREAD_LIMIT")
 
 
 @dataclass
@@ -59,6 +60,14 @@ def _text_layer_is_usable(text: str, cfg) -> bool:
 
 
 # ---------------------------------------------------------------- OCR engines
+def _share_cores(workers: int):
+    """Linux and Windows builds of Tesseract use OpenMP, and every process grabs all cores.
+    With several OCR jobs at once they fight each other and a run gets 2-3x slower than
+    one job alone. Give each Tesseract process its share of the cores instead."""
+    if not _USER_OMP_LIMIT:
+        os.environ["OMP_THREAD_LIMIT"] = str(max(1, (os.cpu_count() or 1) // workers))
+
+
 def _ocr_tesseract(png_bytes: bytes, cfg) -> tuple:
     import pytesseract
     from PIL import Image
@@ -149,6 +158,7 @@ def extract_book(pdf_path: str, cfg, on_page=None, checkpoint=None) -> list:
     checkpoint = checkpoint or (lambda: None)
     cache_file = _cache_path(pdf_path, cfg)
     workers = max(1, int(cfg["ocr_workers"]))
+    _share_cores(workers)
     force_ocr = cfg.get("force_ocr", False)
 
     with pymupdf.open(pdf_path) as doc:

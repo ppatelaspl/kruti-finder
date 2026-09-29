@@ -5,8 +5,8 @@ Download the installer for your computer from the project's GitHub **Releases** 
 | Computer | File | Requirements |
 |---|---|---|
 | Windows 10 / 11 (64-bit) | `KrutiFinder-Setup-x.y.z.exe` | No admin rights needed |
-| Mac with Apple chip (M1–M4) | `KrutiFinder-x.y.z-mac-apple-silicon.dmg` | macOS 14 Sonoma or newer |
-| Ubuntu 22.04+ / Linux Mint 21+ / Debian 12+ | `kruti-finder_x.y.z_amd64.deb` | Internet during install (for OCR package) |
+| Mac with Apple chip (M1–M4) | `KrutiFinder-x.y.z-mac-apple-silicon.dmg` | macOS 11 Big Sur or newer |
+| Ubuntu 20.04+ / Linux Mint 20+ / LMDE 6+ / Debian 11+ | `kruti-finder_x.y.z_amd64.deb` | Internet during install (for OCR package) |
 
 OCR for Hindi, Gujarati and Sanskrit is included. Nothing else needs to be installed.
 
