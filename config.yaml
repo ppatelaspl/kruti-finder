@@ -31,11 +31,14 @@ max_kruti_pages: 40            # end must be within this many pages of the start
 # ---------------- Kruti detection ----------------
 min_verses: 2                  # ignore numbered blocks shorter than this
 max_opening_chars: 600         # how far back from verse 1 to take the title and opening
-title_keywords: ["स्तवन", "सज्झाय", "स्तुति", "थोय", "चैत्यवंदन", "गीत", "पद", "लावणी",
-                 "छंद", "रास", "स्तोत्र", "गहूंली", "भास", "चोवीसी", "बावनी"]
+title_keywords: ["स्तवन", "सज्झाय", "स्वाध्याय", "स्तुति", "थोय", "थुई", "चैत्यवंदन", "गीत", "पद",
+                 "लावणी", "छंद", "रास", "स्तोत्र", "स्तव", "गहूंली", "गहुंली", "भास", "चोवीसी",
+                 "बावनी", "छत्तीसी", "बत्तीसी", "पच्चीसी", "अष्टक", "सूत्र", "आरती", "पूजा", "विनती",
+                 "प्रभाती", "सवैया", "कवित्त", "हरियाली", "फेरी", "भगवान"]
                                # a heading line containing one of these starts a new Kruti
-section_keywords: ["ढाल", "ढाळ", "दुहा", "दूहा", "दुहो", "दूहो", "दोहा", "दोहरा", "कलश", "सोरठा", "सोरठो",
-                   "चोपाई", "चौपाई"]
-                               # parts inside one Kruti (dhal, doha, kalash): verse numbers
-                               # restart there, but no new Kruti starts
+section_keywords: ["ढाल", "ढाळ", "दुहा", "दूहा", "दुहो", "दूहो", "दोहा", "दोहरा", "कलश", "सोरठा",
+                   "सोरठो", "चोपाई", "चौपाई",
+                   "हाल", "हाळ", "टाल", "टाळ", "टाई", "डाल", "डाळ", "डुहा", "डूहा"]
+                               # parts inside one Kruti (dhal, doha, kalash; the last row are
+                               # OCR misreadings): verse numbers restart there, no new Kruti
 duplicate_threshold: 88        # same Kruti in two books/places = one Kruti ID (match %)

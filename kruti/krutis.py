@@ -71,7 +71,8 @@ class Kruti:
 # start of a line, closed by heading punctuation.  "16॥ नेमनाथजीनी लावणी. ।"
 _MARKER = re.compile(r"\d{1,3}\s*[।॥]")
 # (an optional book serial first: "173. सुनंदा रूपसेननी सज्झाय")
-_PHRASE = re.compile(r"[\s।॥|'\"“]*(?:\d{1,4}\s*[.)]\s+)?([^\n.,;:।॥]{3,60}?)\s*([.:।॥\n]|$)")
+_PHRASE = re.compile(r"[\s।॥|'\"“]*(\(\s*[^\s()]{1,3}\s*\)\s*|\d{1,4}\s*[.)]\s+)?"
+                     r"([^\n.,;:।॥]{3,60}?)\s*([.:।॥\n]|$)")
 _HEAD_TRIM = " .:-।॥\"'“”"
 _SERIAL = re.compile(r"\s*[\[(]\s*[^\s\[\]()]{1,3}\s*[\])]?\s*$")          # "नु [8]" inside the phrase
 _SERIAL_REST = re.compile(r"\s*[।॥|\[(]?\s*[^\s\[\]()]{1,3}\s*[\])]\s*")  # "नु । 12]" after it
@@ -112,21 +113,24 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
              [i + 1 for i, c in enumerate(text) if c == "\n"]
     for pos in sorted(set(starts)):
         m = _PHRASE.match(text, pos)
-        if not m or text.startswith("..", m.start(2)):   # "…रयण भंडार... 1..." is a verse
+        if not m or text.startswith("..", m.start(3)):   # "…रयण भंडार... 1..." is a verse
             continue
-        phrase = re.sub(r"^[\d\s.]+", "", m.group(1))                      # "8569 लावणी"
+        phrase = re.sub(r"^[\d\s.]+", "", m.group(2))                      # "8569 लावणी"
         # "सुपाश्वेनाथ नु [7]": a line holding only a name and a bracketed serial number
         # (often OCR-garbled: [छ], । 12]) is as strong a sign as verses restarting at 1
-        line_end = text.find("\n", m.start(1))
+        line_end = text.find("\n", m.start(2))
         line_end = len(text) if line_end < 0 else line_end
         serial = _SERIAL.search(phrase)
         if serial:
             phrase = phrase[:serial.start()]
-        rest = text[m.start(1) + len(m.group(1)):line_end]
+        rest = text[m.start(2) + len(m.group(2)):line_end]
         bracketed = bool(serial) and not rest.strip() or bool(_SERIAL_REST.fullmatch(rest))
         phrase = phrase.strip(_HEAD_TRIM)
         # a restart only vouches for a phrase closed by heading punctuation, not a bare line
-        vouched = bracketed or (restart and m.group(2) in ".।")
+        # "294. वैराग्यनी साय" / "(१) अभिनंदन जिन सवत.": a short phrase after the book's
+        # serial number, alone on its line, is a heading even when OCR garbled its type word
+        numbered = bool(m.group(1)) and len(phrase.split()) <= 6 and m.group(3) in ".:।\n"
+        vouched = bracketed or numbered or (restart and m.group(3) in ".।")
         core = re.sub(r"\s*\([^)]*\)?\s*$", "", phrase)   # "…सज्झाय (ढाळ-2)": note on parts
         if _is_title(core or phrase, title_keys, name_keys, name_score, vouched):
             end = line_end if bracketed else m.end()
@@ -139,14 +143,36 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
 _PART_LINE = 80      # "ढाल तेरहवीं - नारायणकी देशी …": a part heading may carry its tune
 
 
+def _part_heading(piece: str, section_keys) -> bool:
+    """"ढाळ ४", "॥ हाल त्रीनी ॥", "डुहाः-", "ढाल तेरहवीं -नारायणकी देशी": a part word first,
+    on a heading-shaped piece - short, or with a colon/dash/tune note. A verse that just
+    starts with such a word ("हाल बेहाल थयो जीवडो, …") is not one."""
+    piece = piece.strip()
+    words = [w for w in re.split(r"[\s:\-–ः]+", piece) if w]
+    if not words or len(piece) > _PART_LINE or key_only(words[0]) not in section_keys:
+        return False
+    return len(words) <= 4 or bool(re.search(r"[:\-–ः]|देशी|राग", piece))
+
+
 def _section_break(text: str, section_keys: list) -> bool:
-    """A part heading inside one Kruti - "ढाळ ४", "दुहा", "कलश" - on its own line or
-    between dandas. Verse numbers restart after it, yet the Kruti goes on."""
-    for piece in re.split(r"[\n।॥]", text):
-        words = piece.split()
-        if words and len(piece.strip()) <= _PART_LINE and key_only(words[0]) in section_keys:
-            return True
-    return False
+    """A part heading inside one Kruti, on its own line or between dandas. Verse numbers
+    restart after it, yet the Kruti goes on."""
+    return any(_part_heading(p, section_keys) for p in re.split(r"[\n।॥]", text))
+
+
+def _without_part_headings(body: str, section_keys) -> str:
+    """Aadi/Ant must not include "ढाळ १:" lines; a heading sharing its line with the first
+    verse ("डुहाः-इयादिक अनेक छे, …") loses only the heading word."""
+    out = []
+    for ln in body.split("\n"):
+        head = re.split(r"[\n।॥]", ln)[0]
+        if _part_heading(head, section_keys):
+            words = [w for w in re.split(r"[\s:\-–ः]+", head) if w]
+            if len(words) <= 4 and not re.search(r",", ln):
+                continue                      # a heading line of its own
+            ln = re.sub(r"^\s*\S+?[\s:\-–ः]+", "", ln, count=1)
+        out.append(ln)
+    return "\n".join(out)
 
 
 def _verse_blocks(light: str, title_keys: list, name_keys: list, name_score: float,
@@ -328,9 +354,7 @@ def find_krutis(book, page_conf: dict, cfg, names=()) -> list:
             continue
 
         body = opening + book.light[first[2]:block_end]      # the Kruti's text after its title
-        body = "\n".join(ln for ln in body.split("\n")          # minus "ढाळ १:" part headings
-                         if not (len(ln.strip()) <= _PART_LINE and ln.split()
-                                 and key_only(ln.split()[0]) in section_keys))
+        body = _without_part_headings(body, section_keys)
         sents = _sentences(body, raw=True)
         aadi_full = _vakya(sents[0], True) if sents else ""
         ant_full = _vakya(sents[-1], False) if sents else ""

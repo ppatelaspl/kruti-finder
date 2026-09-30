@@ -27,12 +27,16 @@ DEFAULTS = {
     # Kruti detection
     "min_verses": 2,
     "max_opening_chars": 600,
-    "title_keywords": ["स्तवन", "सज्झाय", "स्तुति", "थोय", "चैत्यवंदन", "गीत", "पद", "लावणी",
-                       "छंद", "रास", "स्तोत्र", "गहूंली", "भास", "चोवीसी", "बावनी"],
+    "title_keywords": ["स्तवन", "सज्झाय", "स्वाध्याय", "स्तुति", "थोय", "थुई", "चैत्यवंदन", "गीत",
+                       "पद", "लावणी", "छंद", "रास", "स्तोत्र", "स्तव", "गहूंली", "गहुंली", "भास",
+                       "चोवीसी", "बावनी", "छत्तीसी", "बत्तीसी", "पच्चीसी", "अष्टक", "सूत्र", "आरती",
+                       "पूजा", "विनती", "प्रभाती", "सवैया", "कवित्त", "हरियाली", "फेरी", "भगवान"],
     # parts inside one Kruti (a sajjhay/ras in several dhals, with dohas and a kalash):
     # their verse numbers restart, but they do not start a new Kruti
     "section_keywords": ["ढाल", "ढाळ", "दुहा", "दूहा", "दुहो", "दूहो", "दोहा", "दोहरा", "कलश", "सोरठा",
-                         "सोरठो", "चोपाई", "चौपाई"],
+                         "सोरठो", "चोपाई", "चौपाई",
+                         # frequent OCR misreadings of ढाल / दुहा (only on heading-shaped lines)
+                         "हाल", "हाळ", "टाल", "टाळ", "टाई", "डाल", "डाळ", "डुहा", "डूहा"],
     "name_match_threshold": 85,
     "max_kruti_pages_check": 8,
     "live_count_seconds": 10,       # how often "Kruti found" is refreshed while reading     # a Kruti longer than this is flagged for review
