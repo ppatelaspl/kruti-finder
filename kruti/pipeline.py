@@ -14,7 +14,8 @@ from openpyxl import load_workbook
 from .extract import extract_book, page_count
 from .gaps import find_gaps, group_duplicates
 from .matcher import FOUND, PARTIAL, Book, BookIndex, locate
-from .report import merge_approved, write_missing, write_report
+from .config import merged
+from .report import RESULTS_FILE, merge_approved, write_results
 
 
 class Cancelled(Exception):
@@ -68,8 +69,7 @@ class Progress:
 
 @dataclass
 class RunResult:
-    report_path: str
-    missing_path: str
+    results_path: str
     status_counts: dict
     new_kruti: int
     books: int
@@ -164,7 +164,7 @@ def run(excel, inputs, out_dir, cfg, on_progress=None, log=print, ctl=None) -> R
     os.makedirs(out_dir, exist_ok=True)
 
     results = {k["id"]: [] for k in krutis}
-    all_gaps, page_log, skipped = [], [], []
+    all_gaps, skipped = [], []
     pages_before = 0
     for n, (pdf, npages) in enumerate(zip(pdfs, counts), 1):
         ctl.checkpoint()
@@ -193,24 +193,15 @@ def run(excel, inputs, out_dir, cfg, on_progress=None, log=print, ctl=None) -> R
         except Exception as e:  # noqa: BLE001 - a broken PDF must not stop a 200-book run
             log(f"[{n}/{len(pdfs)}] {name}: SKIPPED - could not read ({e})")
             skipped.append(name)
-            page_log.append([name, "-", "-", "-", 0, f"Could not read file: {e}"])
             pages_before += npages
             prog.pages_done = pages_before
             continue
         pages_before += npages
         prog.pages_done = pages_before
 
-        for p in pages:
-            flag = ""
-            if len(p.text.strip()) < cfg["min_text_chars"]:
-                flag = "Little or no text (blank/image page?)"
-            elif p.source == "ocr" and p.confidence < cfg["low_ocr_confidence"]:
-                flag = "Low OCR confidence"
-            page_log.append([name, p.page, p.source, p.confidence, len(p.text.strip()), flag])
-
         prog.stage = "Matching Kruti"
         emit(True)
-        book = Book.from_pages(name, pages)
+        book = Book.from_pages(pdf.name, pages)      # the file name is what the report shows
         index = BookIndex(book.key)
         spans, found_here = [], 0
         for k in krutis:
@@ -231,10 +222,8 @@ def run(excel, inputs, out_dir, cfg, on_progress=None, log=print, ctl=None) -> R
     all_gaps.sort(key=lambda g: (g.book, g.start_page))
     missing = group_duplicates(all_gaps, cfg["duplicate_threshold"])
 
-    report_path = os.path.join(out_dir, "Kruti_Report.xlsx")
-    missing_path = os.path.join(out_dir, "Missing_Kruti.xlsx")
-    write_report(report_path, krutis, results, len(missing), page_log, len(pdfs), columns)
-    write_missing(missing_path, missing, krutis, results, columns)
+    results_path = os.path.join(out_dir, RESULTS_FILE)
+    write_results(results_path, missing, krutis, results, columns)
 
     status = {FOUND: 0, PARTIAL: 0, "Not Found": 0}
     for k in krutis:
@@ -244,8 +233,11 @@ def run(excel, inputs, out_dir, cfg, on_progress=None, log=print, ctl=None) -> R
     prog.pages_done = prog.pages_total
     emit(True)
     log(f"Done. Excel Kruti: {status}. New Kruti: {len(missing)}")
-    return RunResult(report_path, missing_path, status, len(missing), len(pdfs), skipped)
+    return RunResult(results_path, status, len(missing), len(pdfs), skipped)
 
 
-def merge(report_path, missing_path, out_path):
-    return merge_approved(report_path, missing_path, out_path)
+def merge(excel_path, results_path, out_path, cfg=None):
+    """New master = the team's Excel + the new Kruti approved in the reviewed results."""
+    cfg = cfg or merged(None)
+    krutis, columns = load_krutis(excel_path, cfg)
+    return merge_approved([k["raw"] for k in krutis], columns, results_path, out_path)

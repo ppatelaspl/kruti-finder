@@ -29,7 +29,7 @@ class Gap:
     ocr_quality: str
     span: tuple
     temp_id: str = ""
-    also_in: list = field(default_factory=list)   # (book, start, end) of duplicate copies
+    copies: list = field(default_factory=list)    # the same Kruti in other books/pages (Gap)
 
 
 def _heading_between(text: str, title_keys: list) -> bool:
@@ -120,7 +120,7 @@ def group_duplicates(gaps: list, threshold: float = 88) -> list:
         k = key_only(g.aadi)[:120] + "|" + key_only(g.ant)[-120:]
         match = process.extractOne(k, keys, scorer=fuzz.ratio, score_cutoff=threshold) if keys else None
         if match:
-            groups[match[2]].also_in.append((g.book, g.start_page, g.end_page))
+            groups[match[2]].copies.append(g)
         else:
             groups.append(g)
             keys.append(k)

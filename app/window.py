@@ -185,14 +185,12 @@ class MainWindow(QMainWindow):
         self.results_bar = QWidget()
         rb = QHBoxLayout(self.results_bar)
         rb.setContentsMargins(0, 0, 0, 0)
-        self.open_missing_btn = QPushButton("Open Missing Kruti file", objectName="primary")
-        self.open_report_btn = QPushButton("Open Report")
+        self.open_results_btn = QPushButton("Open results (Excel)", objectName="primary")
         self.open_folder_btn = QPushButton("Open output folder")
-        self.open_missing_btn.clicked.connect(lambda: _open(self.result.missing_path))
-        self.open_report_btn.clicked.connect(lambda: _open(self.result.report_path))
+        self.open_results_btn.clicked.connect(lambda: _open(self.result.results_path))
         self.open_folder_btn.clicked.connect(
-            lambda: _open(Path(self.result.missing_path).parent))
-        for b in (self.open_missing_btn, self.open_report_btn, self.open_folder_btn):
+            lambda: _open(Path(self.result.results_path).parent))
+        for b in (self.open_results_btn, self.open_folder_btn):
             rb.addWidget(b)
         rb.addStretch()
         self.results_bar.hide()
@@ -246,18 +244,19 @@ class MainWindow(QMainWindow):
     def _merge_tab(self):
         page = QWidget(objectName="page")
         v = QVBoxLayout(page)
-        info = QLabel("After the team has reviewed <b>Missing_Kruti.xlsx</b> (Approve = Y, real "
-                      "Kruti No. filled in), merge the approved rows into a new master Excel.")
+        info = QLabel("After the team has reviewed <b>Kruti_Results.xlsx</b> (Approve = Y, real "
+                      "Kruti No. filled in), add the approved new Kruti to a copy of the Kruti "
+                      "Excel. Each approved Kruti is added once, even if it is in several books.")
         info.setWordWrap(True)
         v.addWidget(info)
         form = QFormLayout()
-        self.m_report, r1 = self._file_row("Kruti_Report.xlsx", lambda: self._pick_into(
-            self.m_report, "Kruti_Report.xlsx"))
-        self.m_missing, r2 = self._file_row("Reviewed Missing_Kruti.xlsx", lambda: self._pick_into(
-            self.m_missing, "Missing_Kruti.xlsx"))
+        self.m_excel, r1 = self._file_row("The team's Kruti Excel", lambda: self._pick_into(
+            self.m_excel, "Kruti Excel"))
+        self.m_results, r2 = self._file_row("Reviewed Kruti_Results.xlsx", lambda: self._pick_into(
+            self.m_results, "Kruti_Results.xlsx"))
         self.m_out, r3 = self._file_row("New master file to create", self._pick_merge_out)
-        form.addRow("Report", r1)
-        form.addRow("Reviewed file", r2)
+        form.addRow("Kruti Excel", r1)
+        form.addRow("Reviewed results", r2)
         form.addRow("Save new master as", r3)
         v.addLayout(form)
         self.merge_btn = QPushButton("Merge approved Kruti", objectName="primary")
@@ -276,6 +275,7 @@ class MainWindow(QMainWindow):
     def _load_settings(self):
         s, d = self.settings, merged(None)
         self.excel_edit.setText(s.value("excel", ""))
+        self.m_excel.setText(self.excel_edit.text())
         default_out = Path(QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation)) \
             / "Kruti Finder"
         self.out_edit.setText(s.value("out", str(default_out)))
@@ -464,8 +464,8 @@ class MainWindow(QMainWindow):
         if res.skipped:
             msg += f"\n\n{len(res.skipped)} file(s) could not be read - see the log."
         self.stats["new"].setText(f"{res.new_kruti:,}")   # after grouping copies across books
-        self.m_report.setText(res.report_path)
-        self.m_missing.setText(res.missing_path)
+        self.m_excel.setText(self.excel_edit.text())
+        self.m_results.setText(res.results_path)
         QMessageBox.information(self, "Kruti Finder", msg)
 
     def _on_failed(self, err):
@@ -497,15 +497,15 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ merge
     def _merge(self):
-        rep, miss, out = (e.text().strip() for e in (self.m_report, self.m_missing, self.m_out))
-        if not (Path(rep).is_file() and Path(miss).is_file() and out):
-            QMessageBox.warning(self, "Merge", "Select the report, the reviewed file and where "
-                                               "to save the new master.")
+        excel, res, out = (e.text().strip() for e in (self.m_excel, self.m_results, self.m_out))
+        if not (Path(excel).is_file() and Path(res).is_file() and out):
+            QMessageBox.warning(self, "Merge", "Select the Kruti Excel, the reviewed results "
+                                               "file and where to save the new master.")
             return
         self.merge_btn.setEnabled(False)
         self.merge_status.setText("Merging…")
         self._m_thread = QThread(self)
-        self._m_worker = MergeWorker(rep, miss, out)
+        self._m_worker = MergeWorker(excel, res, out)
         self._m_worker.moveToThread(self._m_thread)
         self._m_thread.started.connect(self._m_worker.run)
         self._m_worker.finished.connect(self._merge_done)

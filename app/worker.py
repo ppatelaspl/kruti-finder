@@ -53,13 +53,13 @@ class MergeWorker(QObject):
     finished = Signal(int, int)
     failed = Signal(str)
 
-    def __init__(self, report, missing, out):
+    def __init__(self, excel, results, out):
         super().__init__()
-        self.report, self.missing, self.out = report, missing, out
+        self.excel, self.results, self.out = excel, results, out
 
     def run(self):
         try:
-            added, total = merge(self.report, self.missing, self.out)
+            added, total = merge(self.excel, self.results, self.out)
             self.finished.emit(added, total)
         except Exception as e:                      # noqa: BLE001
             self.failed.emit(f"{e}\n\n{traceback.format_exc()}")

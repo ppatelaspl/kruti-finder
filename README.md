@@ -33,7 +33,7 @@ The command-line version described below uses the same engine and gives identica
    - **Ant Vakya:** the last verse;
    - **pages.**
 
-   The same Kruti found in several books or editions, even one in Gujarati script and one in Devanagari, becomes **one row**, with the other copies listed in "Also Found In".
+   The same Kruti found in several books or editions, even one in Gujarati script and one in Devanagari, shares **one Temp ID**, with one row per book and page range.
 
    Running headers, footers and page numbers are removed first, so they never leak into the Vakya text or break a Kruti that crosses a page.
 
@@ -59,40 +59,27 @@ For old printed books, replace `hin/guj/san.traineddata` with the **tessdata_bes
 python kruti_finder.py run --excel Kruti_Master.xlsx --books "D:\Books" --out output
 ```
 
-It writes two files to `output/`: **`Missing_Kruti.xlsx`** (the main deliverable for the team) and **`Kruti_Report.xlsx`** (status of the Kruti already in the Excel). The books folder may contain sub-folders. The book name in the report is the PDF file name, so name files meaningfully (e.g. `Kshamakalyan_Kruti_Sangrah_Vol2.pdf`).
+It writes one file to `output/`: **`Kruti_Results.xlsx`**. The books folder may contain sub-folders. Books are identified by their PDF file name, so name files meaningfully (e.g. `B052034_kshama_kalyan_kruti_sangrah_part_01.pdf`).
 
-## Output 1: `Missing_Kruti.xlsx` (the main deliverable)
-
-Both sheets start with the same four columns as the team's Excel (कृति क्र., नाम, आदिवाक्य, अंत वा.) and are grouped one row per Kruti.
+## Output: `Kruti_Results.xlsx`
 
 | Sheet | Use |
 |---|---|
-| New Kruti | Kruti not in the Excel. After the four columns come Temp ID, Book, Start/End Page, No. of Verses, No. of Books, Also Found In (other books with pages), OCR Quality, Approve (Y/N) and Reviewer Remarks. Grey columns are for the team. |
-| Excel Kruti - Books Found | Kruti already in the Excel, with No. of Books, first Book and pages, and every other book in "Also Found In". Reviewer Remarks lets the team note which copies are new for them. |
-| How to Review | Short instructions for reviewers |
-
-## Output 2: `Kruti_Report.xlsx` (the Kruti already in the Excel)
-
-| Sheet | Use |
-|---|---|
-| Dashboard | Counts: found / partial / not found, missing Kruti, pages OCR'd, pages flagged |
-| Kruti Summary | One row per Kruti: status, first book, pages, other books. Kruti **not found in any book** are here. |
-| Kruti Locations | One row per occurrence (a Kruti in 3 books = 3 rows), with match % |
-| Page Log | How every page was read (text/OCR), OCR confidence, low-quality flags |
-| Updated Master | The original Excel plus Status, Book and Page columns |
+| New Kruti | Every Kruti found in the books that is **not in the Excel**, one row per book and page range. The same Kruti in several books or pages shares one Temp ID; its rows stay together and are shaded as one block. Columns: Temp ID, the Excel's four columns (कृति क्र. left blank for the team), File Name, Start Page, End Page, No. of Verses, No. of Books, OCR Quality, Approve (Y/N), Remarks. Grey columns are for the team. |
+| Excel Kruti | The Excel's own Kruti with Status (Found / Partially Found / Not Found), File Name and pages, one row per book it was found in. |
 
 ## Team review loop
 
-1. Reviewers work through the **New Kruti** sheet of `Missing_Kruti.xlsx`.
-   - Assign the real Kruti No. (left blank, the Temp ID is used).
+1. Reviewers work through the **New Kruti** sheet.
+   - Fill in the real Kruti No. (left blank, the Temp ID is used).
    - Check the title.
    - Correct Aadi/Ant text on rows marked "OCR Quality: Low".
-   - Set Approve = `Y` for real Kruti.
-2. Reviewers check the **Excel Kruti - Books Found** sheet for copies in books the team has not used, and **Partially Found** rows. Usually the book text differs from the Excel, or OCR on that page was poor (see Page Log).
-3. Merge the approved rows into a new master:
+   - Set Approve = `Y` for real Kruti. One row per Temp ID is enough; the Kruti is added once.
+2. Reviewers check **Partially Found** rows on the **Excel Kruti** sheet. Usually the book text differs from the Excel, or OCR on that page was poor.
+3. Merge the approved Kruti into a new master (the app's *Merge Reviewed File* tab does the same):
 
    ```bash
-   python kruti_finder.py merge --report output/Kruti_Report.xlsx --missing output/Missing_Kruti.xlsx --out Kruti_Master_v2.xlsx
+   python kruti_finder.py merge --excel Kruti_Master.xlsx --results output/Kruti_Results.xlsx --out Kruti_Master_v2.xlsx
    ```
 
 4. Use the new master for the next run. Coverage improves with every cycle.
@@ -114,7 +101,7 @@ Both sheets start with the same four columns as the team's Excel (कृति �
 
 ## Known limits
 
-- **Manuscript or old-script pages** (handwritten, padimatra, heavily damaged) are not read reliably by any off-the-shelf OCR. They show up in the Page Log as low confidence; treat Not Found there as "unchecked".
+- **Manuscript or old-script pages** (handwritten, padimatra, heavily damaged) are not read reliably by any off-the-shelf OCR. Rows from such pages are marked "OCR Quality: Low"; treat Not Found in those books as "unchecked".
 - **Splitting relies on verse numbers and headings.** Kruti printed without verse numbers or a type-word heading (e.g. a single unnumbered doha) are not detected as new Kruti.
 - **Titles are a first draft.** They may include a raga/dhal line or miss a title placed below verse 1, and always need a reviewer's check.
 - **One book = one PDF.** If a book is split across several PDFs, a Kruti crossing the split will show as Partially Found in both parts.

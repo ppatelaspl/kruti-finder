@@ -2,8 +2,8 @@
 """Kruti Finder (command line). The desktop app uses the same engine.
 
   python kruti_finder.py run   --excel kruti.xlsx --books ./books --out ./output
-  python kruti_finder.py merge --report ./output/Kruti_Report.xlsx \
-        --missing ./output/Missing_Kruti.xlsx --out Kruti_Master_v2.xlsx
+  python kruti_finder.py merge --excel kruti.xlsx \
+        --results ./output/Kruti_Results.xlsx --out Kruti_Master_v2.xlsx
 
 --books accepts one or more PDF files and/or folders.
 """
@@ -37,15 +37,15 @@ def main():
     r.add_argument("--books", required=True, nargs="+", help="PDF files and/or folders")
     r.add_argument("--out", default="output")
     m = sub.add_parser("merge", help="Add approved new Kruti to a new master Excel")
-    m.add_argument("--report", required=True)
-    m.add_argument("--missing", required=True, help="Reviewed Missing_Kruti.xlsx")
+    m.add_argument("--excel", required=True, help="The team's Kruti Excel")
+    m.add_argument("--results", required=True, help="Reviewed Kruti_Results.xlsx")
     m.add_argument("--out", required=True)
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
     cfg = load_config(args.config)
     if args.cmd == "merge":
-        added, total = merge(args.report, args.missing, args.out)
+        added, total = merge(args.excel, args.results, args.out, cfg)
         log.info("Added %d approved Kruti. Master now has %d rows: %s", added, total, args.out)
         return
 
@@ -66,7 +66,7 @@ def main():
         sys.exit("Cancelled.")
     except ValueError as e:
         sys.exit(str(e))
-    log.info("Files: %s | %s", res.report_path, res.missing_path)
+    log.info("Results: %s", res.results_path)
 
 
 if __name__ == "__main__":
