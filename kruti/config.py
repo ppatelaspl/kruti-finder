@@ -37,6 +37,10 @@ DEFAULTS = {
                          "सोरठो", "चोपाई", "चौपाई",
                          # frequent OCR misreadings of ढाल / दुहा (only on heading-shaped lines)
                          "हाल", "हाळ", "टाल", "टाळ", "टाई", "डाल", "डाळ", "डुहा", "डूहा"],
+    # "ढाल बीजी": when OCR garbles the part word, its ordinal still marks a part heading
+    "part_ordinals": ["पहेली", "पहली", "प्रथम", "बीजी", "दूसरी", "त्रीजी", "तीसरी", "चोथी", "चौथी",
+                      "पांचमी", "पांचवीं", "छठ्ठी", "छठी", "सातमी", "सातवीं", "आठमी", "आठवीं",
+                      "नवमी", "नौवीं", "दशमी", "दसवीं", "अगियारमी", "बारमी", "तेरमी", "चौदमी"],
     "name_match_threshold": 85,
     "max_kruti_pages_check": 8,
     "live_count_seconds": 10,       # how often "Kruti found" is refreshed while reading     # a Kruti longer than this is flagged for review

@@ -71,7 +71,7 @@ class Kruti:
 # start of a line, closed by heading punctuation.  "16॥ नेमनाथजीनी लावणी. ।"
 _MARKER = re.compile(r"\d{1,3}\s*[।॥]")
 # (an optional book serial first: "173. सुनंदा रूपसेननी सज्झाय")
-_PHRASE = re.compile(r"[\s।॥|'\"“]*(\(\s*[^\s()]{1,3}\s*\)\s*|\d{1,4}\s*[.)]\s+)?"
+_PHRASE = re.compile(r"[\s।॥|'\"“]*(\(\s*[^\s()]{1,3}\s*\)\s*|\d{1,4}\s*[.)]\s+|\d{1,4}\s+(?=[^\d\s]))?"
                      r"([^\n.,;:।॥]{3,60}?)\s*([.:।॥\n]|$)")
 _HEAD_TRIM = " .:-।॥\"'“”"
 _SERIAL = re.compile(r"\s*[\[(]\s*[^\s\[\]()]{1,3}\s*[\])]?\s*$")          # "नु [8]" inside the phrase
@@ -112,6 +112,14 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
     starts = [0] + [m.end() for m in _MARKER.finditer(text)] + \
              [i + 1 for i, c in enumerate(text) if c == "\n"]
     for pos in sorted(set(starts)):
+        if pos == 0 or text[pos - 1] == "\n":
+            eol = text.find("\n", pos)
+            line = text[pos:len(text) if eol < 0 else eol]
+            # "(च)", "(क)": a letter serial alone on its line; "(राग - …)": a tune line.
+            # Both open a new Kruti even when no title is printed.
+            if re.fullmatch(r"\s*\(\s*[^\s()\d]{1,2}\s*\)\s*", line) or \
+                    re.match(r"\s*\(?\s*राग\s*[:\-–]", line):
+                return base + pos, base + pos + len(line), ""
         m = _PHRASE.match(text, pos)
         if not m or text.startswith("..", m.start(3)):   # "…रयण भंडार... 1..." is a verse
             continue
@@ -129,7 +137,9 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
         # a restart only vouches for a phrase closed by heading punctuation, not a bare line
         # "294. वैराग्यनी साय" / "(१) अभिनंदन जिन सवत.": a short phrase after the book's
         # serial number, alone on its line, is a heading even when OCR garbled its type word
-        numbered = bool(m.group(1)) and len(phrase.split()) <= 6 and m.group(3) in ".:।\n"
+        at_line_start = pos == 0 or text[pos - 1] == "\n"
+        numbered = (bool(m.group(1)) and len(phrase.split()) <= 6 and m.group(3) in ".:।\n"
+                    and (at_line_start or not m.group(1).strip()[-1:].isdigit()))
         vouched = bracketed or numbered or (restart and m.group(3) in ".।")
         core = re.sub(r"\s*\([^)]*\)?\s*$", "", phrase)   # "…सज्झाय (ढाळ-2)": note on parts
         if _is_title(core or phrase, title_keys, name_keys, name_score, vouched):
@@ -143,13 +153,35 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
 _PART_LINE = 80      # "ढाल तेरहवीं - नारायणकी देशी …": a part heading may carry its tune
 
 
+class _Parts(list):
+    """Part words (keys) plus ordinals ("बीजी", "तीसरी") that identify part headings."""
+
+    def __init__(self, keys, ordinals=(), kruti_words=()):
+        super().__init__(keys)
+        self.ordinals = list(ordinals)
+        self.kruti_words = set(kruti_words)   # "पद बारमुं" is the 12th पद: a Kruti
+
+
+def _ordinal(word: str, ordinals) -> bool:
+    """"बीजी", or an OCR slip of the same length ("खीजी"); "परम" is not "प्रथम"."""
+    k = key_only(word)
+    return len(k) >= 3 and any(len(o) == len(k) and fuzz.ratio(k, o) >= 75 for o in ordinals)
+
+
 def _part_heading(piece: str, section_keys) -> bool:
     """"ढाळ ४", "॥ हाल त्रीनी ॥", "डुहाः-", "ढाल तेरहवीं -नारायणकी देशी": a part word first,
     on a heading-shaped piece - short, or with a colon/dash/tune note. A verse that just
     starts with such a word ("हाल बेहाल थयो जीवडो, …") is not one."""
     piece = piece.strip()
     words = [w for w in re.split(r"[\s:\-–ः]+", piece) if w]
-    if not words or len(piece) > _PART_LINE or key_only(words[0]) not in section_keys:
+    if not words or len(piece) > _PART_LINE:
+        return False
+    first = key_only(words[0])
+    if (len(words) >= 2 and len(piece) <= 40 and len(first) <= 3 and "," not in piece
+            and first not in getattr(section_keys, "kruti_words", ())
+            and _ordinal(words[1], getattr(section_keys, "ordinals", ()))):
+        return True                          # "हाश खीजीः-", "हार त्रीजी": OCR'd "ढाल बीजी"
+    if key_only(words[0]) not in section_keys:
         return False
     return len(words) <= 4 or bool(re.search(r"[:\-–ः]|देशी|राग", piece))
 
@@ -209,6 +241,8 @@ def _verse_blocks(light: str, title_keys: list, name_keys: list, name_score: flo
         # restart alone does not vouch for a heading (it would take refrains for titles)
         head = _find_heading(segment, prev_end, title_keys, name_keys, name_score,
                              restart and not in_part)
+        if head and head[2] and section_keys and _part_heading(head[2], section_keys):
+            head = None                      # "हार त्रीजी ड--कळावती" is a part, not a Kruti
         if head:
             close()                         # the heading ends the previous Kruti
             heading, n, section_open = head, 1, own_part
@@ -338,7 +372,9 @@ def find_krutis(book, page_conf: dict, cfg, names=()) -> list:
     """names: Kruti names from the Excel; a heading matching one starts a new Kruti."""
     found, prev_end = [], 0
     title_keys = [key_only(t) for t in cfg.get("title_keywords", []) if key_only(t)]
-    section_keys = [key_only(t) for t in cfg.get("section_keywords", []) if key_only(t)]
+    section_keys = _Parts([key_only(t) for t in cfg.get("section_keywords", []) if key_only(t)],
+                          [key_only(t) for t in cfg.get("part_ordinals", []) if key_only(t)],
+                          title_keys)
     name_keys = [k for k in (key_only(n) for n in names if n) if len(k) >= 3]
     pattern = verse_pattern(book.light, len(book.page_numbers))
     for block in _verse_blocks(book.light, title_keys, name_keys, cfg["name_match_threshold"],

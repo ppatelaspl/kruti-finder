@@ -39,6 +39,11 @@ title_keywords: ["स्तवन", "सज्झाय", "स्वाध्य
 section_keywords: ["ढाल", "ढाळ", "दुहा", "दूहा", "दुहो", "दूहो", "दोहा", "दोहरा", "कलश", "सोरठा",
                    "सोरठो", "चोपाई", "चौपाई",
                    "हाल", "हाळ", "टाल", "टाळ", "टाई", "डाल", "डाळ", "डुहा", "डूहा"]
+part_ordinals: ["पहेली", "पहली", "प्रथम", "बीजी", "दूसरी", "त्रीजी", "तीसरी", "चोथी", "चौथी",
+                "पांचमी", "पांचवीं", "छठ्ठी", "छठी", "सातमी", "सातवीं", "आठमी", "आठवीं", "नवमी",
+                "नौवीं", "दशमी", "दसवीं", "अगियारमी", "बारमी", "तेरमी", "चौदमी"]
+                               # "ढाल बीजी": an ordinal after a short word marks a part even
+                               # when OCR garbled the part word
                                # parts inside one Kruti (dhal, doha, kalash; the last row are
                                # OCR misreadings): verse numbers restart there, no new Kruti
 duplicate_threshold: 88        # same Kruti in two books/places = one Kruti ID (match %)
