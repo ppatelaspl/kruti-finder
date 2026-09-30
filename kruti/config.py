@@ -31,6 +31,7 @@ DEFAULTS = {
                        "छंद", "ढाल", "ढाळ", "रास", "कलश", "स्तोत्र", "गहूंली", "भास",
                        "चोवीसी", "बावनी"],
     "name_match_threshold": 85,
+    "max_kruti_pages_check": 8,     # a Kruti longer than this is flagged for review
     "duplicate_threshold": 88,
 }
 

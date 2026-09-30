@@ -57,16 +57,24 @@ One sheet, **Kruti Found**, one row per Kruti found in a book:
 
 | Column | Meaning |
 |---|---|
-| Group ID | `G-0001` … The same Kruti in several books/places/scripts shares the ID; its rows stay together and are shaded as one block. |
+| Group No., Copy | The same Kruti in several books, places or scripts shares a Group No. (1, 2, 3 … in order of first appearance); Copy says which of how many ("2 of 3"). Rows of a group sit together, shaded as one block. |
 | File Name, Book Name | The PDF file, and a readable book name (the PDF's title, or the file name without the library code and catalogue tags) |
-| Kruti क्रमांक, Kruti Name | From the Excel when matched; for new Kruti the name is the title read from the book |
-| Aadi Vakya, Ant Vakya | As printed in this book, in its own script |
-| Start Page, End Page, No. of Verses | PDF page numbers; verses in this copy |
+| Kruti क्रमांक, Kruti Name | From the Excel when matched; for new Kruti the name is the heading read from the book |
+| Aadi Vakya, Ant Vakya | The Kruti's first and last sentence, as printed in this book and in its own script (refrain cues and verse numbers are skipped) |
+| PDF Start/End Page | Page numbers in the PDF file |
+| Book Start/End Page | Page numbers printed in the book, read from its headers/footers (blank for front matter before page 1) |
+| No. of Verses | Verses in this copy (the book's running Kruti serial number is not counted) |
 | Script | Devanagari or Gujarati, as printed in this book |
 | In Excel? | Matched - same script / Matched - other script / New |
 | Match % | The weaker of the Aadi and Ant matches |
-| OCR Quality | "Low - check scan" when a page was hard to read: check the text against the page |
+| Check | OK, or why a reviewer should look: no heading found, Aadi/Ant not one clear sentence, looks like an index/list, spans many pages, low OCR quality |
 | Remarks | For the team (grey) |
+
+**Kruti boundaries.** Books mark Kruti in different ways; all of these are recognised:
+verse numbers between dandas (॥1॥, ।2।) or at a line end after dots (…1…, …2);
+headings ending in a Kruti-type word (…लावणी, …स्तवन), matching a name in the Excel,
+followed by verses restarting at 1, or followed by a bracketed serial (सुपार्श्वनाथ नु [7]).
+Running page headers and page numbers are removed first.
 
 ## Tuning (`config.yaml`)
 

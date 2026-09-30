@@ -14,7 +14,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from .extract import extract_book, page_count
-from .krutis import Kruti, assign_groups, find_krutis
+from .krutis import Kruti, _sentences, assign_groups, find_krutis
 from .matcher import FOUND, Book, BookIndex, locate
 from .normalize import devanagari_to_gujarati, script_of
 from .report import RESULTS_FILE, write_results
@@ -173,8 +173,10 @@ def _attach_matches(book, found, occurrences, krutis_by_id, page_script):
         if i in used or o.status != FOUND:
             continue
         s, e = o.span_light
-        lines = [ln.strip() for ln in book.light[s:e + 1].split("\n") if ln.strip()] or [""]
-        k = Kruti(book.name, o.start_page, o.end_page, None, "", lines[0], lines[-1], "OK", (s, e))
+        sents = _sentences(book.light[s:e + 1]) or [""]
+        k = Kruti(book.name, o.start_page, o.end_page, None, "", sents[0], sents[-1],
+                  ["No verse numbers or heading - found by matching the Excel text"], (s, e),
+                  book.printed_page(o.start_page), book.printed_page(o.end_page))
         k.script = _script_for(k, page_script)
         _set_match(k, krutis_by_id[kid], min(o.aadi_score, o.ant_score))
         found.append(k)
@@ -295,7 +297,7 @@ def run(excel, inputs, out_dir, cfg, on_progress=None, log=print, ctl=None) -> R
     assign_groups(all_krutis, cfg["duplicate_threshold"])
     results_path = os.path.join(out_dir, RESULTS_FILE)
     write_results(results_path, all_krutis)
-    groups = {k.group_id for k in all_krutis}
+    groups = {k.group_no for k in all_krutis}
 
     prog.stage = "Done"
     prog.pages_done = prog.pages_total

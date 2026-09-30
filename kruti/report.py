@@ -74,29 +74,38 @@ def _page(v):
 
 
 # ------------------------------------------------------------------ results
-COLUMNS = ["Group ID", "File Name", "Book Name", "Kruti क्रमांक", "Kruti Name",
-           "Aadi Vakya (आदिवाक्य)", "Ant Vakya (अंत वाक्य)", "Start Page", "End Page",
-           "No. of Verses", "Script", "In Excel?", "Match %", "OCR Quality", "Remarks"]
+COLUMNS = ["Group No.", "Copy", "File Name", "Book Name", "Kruti क्रमांक", "Kruti Name",
+           "Aadi Vakya (आदिवाक्य)", "Ant Vakya (अंत वाक्य)", "PDF Start Page", "PDF End Page",
+           "Book Start Page", "Book End Page", "No. of Verses", "Script", "In Excel?", "Match %",
+           "Check", "Remarks"]
 
 
 def write_results(path, krutis):
+    """One row per Kruti found. Rows of a group (the same Kruti in several books, places or
+    scripts) sit together; Copy says which of how many."""
     wb = Workbook()
     ws = wb.active
     ws.title = SHEET
-    rows = []
-    for k in sorted(krutis, key=lambda k: (k.group_id, k.book, k.start_page or 0)):
-        rows.append([k.group_id, k.book, k.book_name,
-                     "" if k.kruti_no is None else k.kruti_no,
-                     k.kruti_name or k.title, k.aadi, k.ant,
-                     _page(k.start_page), _page(k.end_page),
+    size = {}
+    for k in krutis:
+        size[k.group_no] = size.get(k.group_no, 0) + 1
+    rows, nth = [], {}
+    for k in sorted(krutis, key=lambda k: (k.group_no, k.book, k.start_page or 0)):
+        nth[k.group_no] = nth.get(k.group_no, 0) + 1
+        rows.append([k.group_no, f"{nth[k.group_no]} of {size[k.group_no]}", k.book, k.book_name,
+                     "" if k.kruti_no is None else k.kruti_no, k.kruti_name or k.title,
+                     k.aadi, k.ant, _page(k.start_page), _page(k.end_page),
+                     "" if k.book_start is None else k.book_start,
+                     "" if k.book_end is None else k.book_end,
                      "" if k.verses is None else k.verses, k.script, k.match,
-                     "" if k.match_score is None else k.match_score, k.ocr_quality, ""])
+                     "" if k.match_score is None else k.match_score,
+                     "; ".join(k.checks) or "OK", ""])
     col = {c: i + 1 for i, c in enumerate(COLUMNS)}
-    _table(ws, COLUMNS, rows, [10, 36, 26, 11, 26, 48, 48, 8, 8, 8, 11, 21, 8, 14, 28],
-           wrap_cols=(2, 3, 5, 6, 7, col["Remarks"]), group_col=1,
+    _table(ws, COLUMNS, rows, [8, 8, 36, 26, 11, 26, 48, 48, 8, 8, 8, 8, 8, 11, 21, 8, 30, 28],
+           wrap_cols=(3, 4, 6, 7, 8, col["Check"], col["Remarks"]), group_col=1,
            status_col=col["In Excel?"], input_cols=(col["Remarks"],))
     for r in ws.iter_rows(min_row=2):
-        cell = r[col["OCR Quality"] - 1]
+        cell = r[col["Check"] - 1]
         if cell.value != "OK":
             cell.font = Font(name=FONT, bold=True, color=RED)
     wb.save(path)

@@ -19,7 +19,9 @@ _INDEX_LEADER = re.compile(r"^[^\n]{0,40}?[.\-_…·]{4,}\s*\d{1,4}\s*$", re.M)
 
 
 def _furniture_key(line: str) -> str:
-    return re.sub(r"\d+", "", line).strip()
+    """A running header without its page number and brackets, so that "चोवीसी [24]",
+    "चोवीसी [2%]" (OCR) and "[10] चैत्यवंदन" compare equal to their siblings."""
+    return re.sub(r"[\d\[\]()%|।॥.:*\-–—]+", " ", line).strip()
 
 
 def _running_lines(texts, share):
@@ -50,6 +52,36 @@ def _is_page_furniture(line: str, repeated: set, edge: bool) -> bool:
         key, repeated, scorer=fuzz.ratio, score_cutoff=75) is not None
 
 
+# A printed page number sits in a short header/footer line: "17", "(17)", "- 17 -",
+# "[10] चैत्यवंदन", "चोवीसी 11".
+_PAGE_NO = re.compile(r"^\W{0,3}(\d{1,4})\W{0,3}(?:\s|$)|(?:^|\s)\W{0,3}(\d{1,4})\W{0,3}$")
+
+
+def _page_number_candidates(lines) -> set:
+    edge = lines[:2] + lines[-2:] if len(lines) > 4 else lines
+    found = set()
+    for ln in edge:
+        if len(ln.strip()) <= 40:
+            for m in _PAGE_NO.finditer(ln.strip()):
+                found.add(int(m.group(1) or m.group(2)))
+    return found
+
+
+def _printed_page_numbers(candidates: dict) -> dict:
+    """Books number their pages with a fixed offset from the PDF page (front matter, cover).
+    The offset most pages agree on wins; a lone OCR'd digit or a verse number cannot."""
+    votes = defaultdict(int)
+    for pdf, nums in candidates.items():
+        for n in nums:
+            votes[n - pdf] += 1
+    if not votes:
+        return {}
+    offset, count = max(votes.items(), key=lambda kv: kv[1])
+    if count < max(3, 0.2 * len(candidates)):
+        return {}
+    return {pdf: pdf + offset for pdf in candidates if pdf + offset > 0}
+
+
 @dataclass
 class Book:
     name: str
@@ -58,14 +90,17 @@ class Book:
     page_numbers: list         # PDF page number for each entry in page_starts
     key: str = ""
     key_map: list = field(default_factory=list)
+    printed: dict = field(default_factory=dict)   # PDF page -> page number printed in the book
 
     @classmethod
     def from_pages(cls, name, pages, header_share: float = 0.2):
         texts = [light_normalize(p.text) for p in pages]
         repeated = _running_lines(texts, header_share)
         parts, starts, numbers, pos = [], [], [], 0
+        seen_numbers = {}
         for p, raw in zip(pages, texts):
             lines = [ln for ln in raw.split("\n") if ln.strip()]
+            seen_numbers[p.page] = _page_number_candidates(lines)
             lines = [ln for i, ln in enumerate(lines) if not _is_page_furniture(
                 ln, repeated, edge=i < 2 or i >= len(lines) - 2)]
             txt = "\n".join(lines) + "\n"
@@ -75,7 +110,11 @@ class Book:
             pos += len(txt)
         book = cls(name, "".join(parts), starts, numbers)
         book.key, book.key_map = make_key(book.light)
+        book.printed = _printed_page_numbers(seen_numbers)
         return book
+
+    def printed_page(self, pdf_page):
+        return self.printed.get(pdf_page)
 
     def page_of_light(self, light_pos: int) -> int:
         i = max(0, bisect.bisect_right(self.page_starts, light_pos) - 1)

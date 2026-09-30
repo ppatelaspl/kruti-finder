@@ -95,3 +95,155 @@ def test_title_drops_ocr_number_prefix():
 def test_aadi_falls_back_to_next_verse_when_opening_is_only_numbers():
     text = PREVIOUS + "16॥ उपदेश लावणी. ॥1॥ सुरग आस मत करे कलेशी, कुमति संग छायो ॥2॥ बीजी कडी रे भाई ॥3॥"
     assert _krutis(text)[1].aadi.startswith("सुरग आस मत करे कलेशी")
+
+
+# Real OCR from Jain-lavani p.25: a Kruti ends "॥ 6॥ ॥98॥" - verse 6, then the book's
+# running Kruti number 98 - followed by the next Kruti's heading.
+LAVANI_END = ("नेमनाथजीनी लावणी.\nकुं मै अबला हुं अजाणु लाल, तेरे दरसनकी भूखी ॥ 1 ॥ जलो जगतकी जाल, "
+              "सखी संपतकुं कया करनी ॥ 2 ॥ (24 प्यार, भार मेरेरिर पर सख धरता ॥ 020 ॥ मेरो आदर नहि कोय "
+              "डरता ॥ 3 ॥ दोहा ॥ आग लगो सुख सेजकुं, मालक दीनी मूक ॥ रुल परमे कायम रहि) सो रती पडी "
+              "नहिं चूक ॥ भलां सो ॥ 6॥ ॥98॥\nनेमजीनी लावणी.\n॥ अने हांरे पिया बिन झुर झुर, खे झुर झुर "
+              "हुई खूनी ॥ 1 ॥ पियु गिरनार गये रे ॥ 2 ॥")
+
+
+def test_running_kruti_number_is_not_a_verse_count():
+    ks = _krutis(LAVANI_END)
+    assert [k.title for k in ks] == ["नेमनाथजीनी लावणी", "नेमजीनी लावणी"]
+    assert ks[0].verses == 6
+
+
+def test_ant_is_the_last_line_not_refrain_or_numbers():
+    ant = _krutis(LAVANI_END)[0].ant
+    assert "पडी नहिं चूक" in ant
+    assert len(ant) < 120 and "डरता" not in ant
+
+
+def test_ocr_variant_of_type_word():
+    # OCR reads लावणी as लावणुं; no restart and no Excel name to vouch for it
+    text = PREVIOUS + "16॥ नेमजीनी लावणुं. । सजन बिन सुना, मेरी जान सजन बिन सुना ॥ 17 ॥ बीजी कडी रे ॥ 18 ॥"
+    assert [k.title for k in _krutis(text)] == ["शांतिनाथ स्तवन", "नेमजीनी लावणुं"]
+
+
+# Real OCR, S037974_chaityavandan_chauvisi p.16-17: verses end "...1..." / "...2" / "..."
+# and each heading is "<name> नु [serial]" (the bracket often OCR-garbled).
+CHAITYA_P16 = """धनुष अढीसें देहमान, कोसंबीराय,
+श्रीधर धरणीधर पिता, गयु सुशीमा माय...2
+तीस लाख पूरव तणुं अ, भोगवी जीवित मान,
+अविचल पदवी पामीओ, मान करे नितु ध्यान.
+सुपाश्वेनाथ नु [छ]
+सुपरि सुरजन सेविओ, सुखकारी गुवार,
+स्वस्तिक लंछन मांगलिक, सघठाने उल्लास... 1...
+सोवन वन तनु दोयसें, धनुमान उत्तंग,
+वीश लाख पूरव तणुं, जीवित जस चंग...2...
+वाणारसी नयरी वळीगे, जिनवर जगविख्यात,
+पृथ्वी मात प्रतिष्ठ तात, सानविजय गुण पात...र...
+चद्रप्रमु गु [8]
+चंद्रपरभु जिन चंद्रसौम्य, पुरी चंद्रा राय,
+कान्ति चंद्र हार्यो रहे, लंछन मसे पाय...?
+लाख पूरव देश आय जास, जगमां विख्यात,
+नुप महसेन ने लक्ष्मणा, केरो अंगजात...2...
+दोढसो धनुष मित देहडी ए, जीवन जगदाधार,
+मानविजय कवियण कहे, आवागमन निवार...3...
+सुविधिनाथ नु" [6]
+सुविधि सुविधिसु सेवि, जिणे सुविधि प्रकाश्यो,
+आपे चारित्र आदरी, विधि योग अभ्यास्यो... 1...
+काकंदी नुपति सुग्रीव, रामानो जायो,
+लाख पूरव जस दोय आय, शत धनुष प्रमायो...2...
+"""
+CHAITYA_P17 = """मगर लंछन जस शोभतूं ए, भयभंजन भगवान,
+मानविजयने गावोगे, अदुभुत अविचल थान.
+शीतलनाथ नु [10]
+शीतल सेजे शीतलो, शीतल जस वाणो,
+समता शीतल ते हुवे, जे निसुणे पाळी...
+नेवं धनुष प्रमाण प्रीत, वर्ण जस काय,
+श्रीवत्स लंछन अक लाख, पूरव जस आय...
+हृढरथ नंदा नंदनोअओ, भदिलपुर वर राय,
+प्रभुध्याने शीतल रहे, मानविजय उवज्ज्ञाय...
+श्रेयांसनाथ नु [22]
+श्री श्रेयांस जिणंद देव, सेवक सुखकारी,
+परम पुरुष परमेश्वरो, प्रणमो नरनारी...
+सिहपुरी वर राय विष्णु, विष्णु अंगजात,
+चउराणी लख वषं आय, सोवन सम गात...
+वासुपुज्य नु । 12]
+वासव पूजित वामुपुज्य, तनु विद्रुम वान,
+राणी जया वसुपूज्यराय, कुल तिलक समान...
+चंपा नयरी जनमिओ, सित्तेर धनुष देह,
+वरस बहोंतेर लाख आय, कीधो भव चेह. .
+"""
+
+
+def _book_krutis(*pages):
+    book = Book.from_pages("book.pdf", [PageText(i + 1, "ocr", 90.0, t) for i, t in enumerate(pages)])
+    return find_krutis(book, {i + 1: 90.0 for i in range(len(pages))}, merged(None))
+
+
+def test_ellipsis_verses_and_bracket_serial_headings():
+    ks = _book_krutis(CHAITYA_P16, CHAITYA_P17)
+    titles = [k.title for k in ks if k.title]
+    assert titles == ["सुपाश्वेनाथ नु", "चद्रप्रमु गु", "सुविधिनाथ नु", "शीतलनाथ नु",
+                      "श्रेयांसनाथ नु", "वासुपुज्य नु"]
+    by_title = {k.title: k for k in ks}
+    assert by_title["सुपाश्वेनाथ नु"].aadi.startswith("सुपरि सुरजन सेविओ")
+    assert by_title["चद्रप्रमु गु"].verses == 3
+    assert "मानविजय कवियण कहे" in by_title["चद्रप्रमु गु"].ant
+    assert by_title["शीतलनाथ नु"].aadi.startswith("शीतल सेजे शीतलो")
+    assert by_title["शीतलनाथ नु"].start_page == 2
+    assert all(len(k.aadi) < 150 and len(k.ant) < 150 for k in ks)
+
+
+def test_aadi_is_first_sentence_and_ant_is_last_sentence():
+    k = {k.title: k for k in _book_krutis(CHAITYA_P16, CHAITYA_P17)}["चद्रप्रमु गु"]
+    assert k.aadi == "चंद्रपरभु जिन चंद्रसौम्य, पुरी चंद्रा राय, कान्ति चंद्र हार्यो रहे, लंछन मसे पाय"
+    assert k.ant == "दोढसो धनुष मित देहडी ए, जीवन जगदाधार, मानविजय कवियण कहे, आवागमन निवार"
+
+
+def test_book_page_numbers_from_headers():
+    # printed "[7] चैत्यवंदन" / "चोवीसी 8" in the headers: book page = PDF page - 6
+    fillers = ["ऋषभ जिनेसर वंदीए", "अजित जिणंद दयाल", "संभव सुखदाता सदा", "अभिनंदन गुणखाण",
+               "सुमति सुमति दातार", "पद्मप्रभ पावन करो", "सुपास जिन सेवीए", "चंद्रप्रभ मुखचंद"]
+    pages = []
+    for i, n in enumerate(range(12, 20)):
+        body = CHAITYA_P17 if n == 13 else f"{fillers[i]}, भवि जन सेवो ...1...\n"
+        head = f"[{n - 6}] चैत्यवंदन" if n % 2 == 0 else f"चोवीसी {n - 6}"
+        pages.append(PageText(n, "ocr", 90.0, f"{head}\n{body}"))
+    book = Book.from_pages("b.pdf", pages)
+    assert book.printed_page(16) == 10 and book.printed_page(19) == 13
+    k = next(k for k in find_krutis(book, {}, merged(None)) if k.title == "शीतलनाथ नु")
+    assert (k.start_page, k.book_start) == (13, 7)
+
+
+def test_index_page_is_flagged():
+    index = ("अनुक्रमणिका\nश्री ऋषभदेव 12 ॥1॥ श्री अजितनाथ 14 ॥2॥ श्री संभवनाथ 16 ॥3॥ श्री अभिनंदन 18 ॥4॥ "
+             "श्री सुमतिनाथ 20 ॥5॥ श्री पद्मप्रभ 22 ॥6॥ श्री सुपार्श्व 24 ॥7॥")
+    ks = _krutis(index)
+    assert ks and "Looks like an index/list, not a Kruti" in ks[0].checks
+
+
+def test_heading_with_stray_danda_first_verse_and_garbled_running_header():
+    # real OCR, S037974 p.30: "। सुविधिनाथ गु [6]", a first verse ending "... 1...", and the
+    # running header "चोवीसी [24]" read as "चोवीसी [2%]" at the top of the next page
+    p1 = ("चैत्यवंदन [27]\nलखमणा सूत पूजि, कुसुम घनसार चंदन. ..2...\nचंद्रप्रभा नयरी सुणो, नरपति प्रणमे पाय,\n"
+          "त्रिजगगुरू नित्ये नमो, लंछन दोपे निशि राय, ..3...\n। सुविधिनाथ गु [6]\n"
+          "सुविधि नवनिधि सुविधि नवनिधि रयण भंडार... 1...\nतात\n")
+    p2 = ("चोवीसी [2%]\nवंछित सुखदायक नमुं, गर्भवास नितु टाझे फे रो,\nकाकंदी नयरी हुओ, देव पुत्र सुग्रीव केरो...2...\n"
+          "रामा राणी जाइओ, मंगर लंछन जे कोय,\nसुविधिनाथ सविया नमो, जिम घरे संपत्ति होय. . . 3. - -\n"
+          "शीतलनाथ नु [20]\nस्वामी शीतल स्वामी शीतल भद्दिलपुर माम ...1...\n")
+    others = [f"{h} [{n}]\n{v} जिनवर वंदीए, भवि जन सेवो ...1...\n"
+              for h, n, v in (("चैत्यवंदन", 29, "ऋषभ"), ("चोवीसी", 30, "अजित"), ("चैत्यवंदन", 31, "संभव"),
+                              ("चोवीसी", 32, "अभिनंदन"))]
+    book = Book.from_pages("b.pdf", [PageText(i + 1, "ocr", 90.0, t)
+                                     for i, t in enumerate([p1, p2] + others)])
+    ks = find_krutis(book, {}, merged(None))
+    titles = [k.title for k in ks if k.title]
+    assert "सुविधिनाथ गु" in titles and "शीतलनाथ नु" in titles
+    assert not any(t.startswith(("सुविधि नवनिधि", "चोवीसी", "चैत्यवंदन")) for t in titles)
+    k = next(k for k in ks if k.title == "सुविधिनाथ गु")
+    assert k.aadi == "सुविधि नवनिधि सुविधि नवनिधि रयण भंडार"
+
+
+def test_rows_without_text_are_not_grouped_together():
+    from kruti.krutis import Kruti, assign_groups
+    a = Kruti("a.pdf", 1, 1, 1, "x", "", "", [], (0, 1))
+    b = Kruti("b.pdf", 2, 2, 1, "y", "", "", [], (0, 1))
+    assign_groups([a, b])
+    assert a.group_no != b.group_no

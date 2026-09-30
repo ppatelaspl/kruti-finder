@@ -13,7 +13,9 @@ from rapidfuzz import fuzz, process
 from .normalize import key_only
 
 # ॥12॥ ; OCR often garbles the number (॥[॥, ॥l॥) - those are inferred from the sequence
-_VERSE_MARK = re.compile(r"[।॥]\s*([\dIl|\[\]()!]{1,3}|\s?)\s*[।॥]")
+# Some books end verses with an ellipsis at the line end instead: "...1...", "...2", "..."
+_VERSE_MARK = re.compile(r"[।॥]\s*([\dIl|\[\]()!]{1,3}|\s?)\s*[।॥]"
+                         r"|\.{2,}\s*([^\s.]{0,2})\s*\.*[ \t]*(?=\n|$)")
 _VERSE_PUNCT = re.compile(r"[।॥,;]")
 
 
@@ -26,22 +28,35 @@ class Kruti:
     title: str
     aadi: str
     ant: str
-    ocr_quality: str
+    checks: list                 # reasons a reviewer should look at this row (empty = OK)
     span: tuple
+    book_start: object = None    # page numbers printed in the book
+    book_end: object = None
     script: str = ""             # Gujarati / Devanagari, as printed in the book
     book_name: str = ""
     kruti_no: object = None      # from the Excel when matched
     kruti_name: str = ""         # from the Excel when matched
     match: str = "New"           # Matched - same script / Matched - other script / New
     match_score: object = None   # weaker of the Aadi/Ant match %
-    group_id: str = ""
+    group_no: int = 0            # same number = same Kruti (other books, places, scripts)
 
 
 # A heading candidate: a short phrase right after a number marker (16॥, ॥16॥) or at the
 # start of a line, closed by heading punctuation.  "16॥ नेमनाथजीनी लावणी. ।"
 _MARKER = re.compile(r"\d{1,3}\s*[।॥]")
-_PHRASE = re.compile(r"\s*([^\n.,;:।॥]{3,60}?)\s*([.:।॥\n]|$)")
-_HEAD_TRIM = " .:-।॥"
+_PHRASE = re.compile(r"[\s।॥|'\"“]*([^\n.,;:।॥]{3,60}?)\s*([.:।॥\n]|$)")
+_HEAD_TRIM = " .:-।॥\"'“”"
+_SERIAL = re.compile(r"\s*[\[(]\s*[^\s\[\]()]{1,3}\s*[\])]?\s*$")          # "नु [8]" inside the phrase
+_SERIAL_REST = re.compile(r"\s*[।॥|\[(]?\s*[^\s\[\]()]{1,3}\s*[\])]\s*")  # "नु । 12]" after it
+
+
+def _ends_with_type(key: str, type_key: str) -> bool:
+    """…लावणी, tolerating one OCR slip in longer type words (लावणुं)."""
+    if key.endswith(type_key):
+        return True
+    n = len(type_key)
+    return n >= 4 and len(key) >= n and max(
+        fuzz.ratio(key[-w:], type_key) for w in (n, n + 1)) >= 70
 
 
 def _is_title(phrase: str, title_keys: list, name_keys: list, name_score: float,
@@ -54,7 +69,7 @@ def _is_title(phrase: str, title_keys: list, name_keys: list, name_score: float,
     k = key_only(phrase)
     if len(k) < 3:
         return False
-    if restart or any(k.endswith(t) for t in title_keys):
+    if restart or any(_ends_with_type(k, t) for t in title_keys):
         return True
     return bool(name_keys) and process.extractOne(
         k, name_keys, scorer=fuzz.ratio, score_cutoff=name_score) is not None
@@ -67,13 +82,23 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
              [i + 1 for i, c in enumerate(text) if c == "\n"]
     for pos in sorted(set(starts)):
         m = _PHRASE.match(text, pos)
-        if not m:
+        if not m or text.startswith("..", m.start(2)):   # "…रयण भंडार... 1..." is a verse
             continue
-        phrase = re.sub(r"^[\d\s.]+", "", m.group(1)).strip(_HEAD_TRIM)   # "8569 लावणी"
+        phrase = re.sub(r"^[\d\s.]+", "", m.group(1))                      # "8569 लावणी"
+        # "सुपाश्वेनाथ नु [7]": a line holding only a name and a bracketed serial number
+        # (often OCR-garbled: [छ], । 12]) is as strong a sign as verses restarting at 1
+        line_end = text.find("\n", m.start(1))
+        line_end = len(text) if line_end < 0 else line_end
+        serial = _SERIAL.search(phrase)
+        if serial:
+            phrase = phrase[:serial.start()]
+        rest = text[m.start(1) + len(m.group(1)):line_end]
+        bracketed = bool(serial) and not rest.strip() or bool(_SERIAL_REST.fullmatch(rest))
+        phrase = phrase.strip(_HEAD_TRIM)
         # a restart only vouches for a phrase closed by heading punctuation, not a bare line
-        vouched = restart and m.group(2) in ".।"
+        vouched = bracketed or (restart and m.group(2) in ".।")
         if _is_title(phrase, title_keys, name_keys, name_score, vouched):
-            end = m.end()
+            end = line_end if bracketed else m.end()
             while end < len(text) and text[end] in " .:-।":   # "लावणी. ।"
                 end += 1
             return base + pos + (len(m.group(0)) - len(m.group(0).lstrip())), base + end, phrase
@@ -92,7 +117,7 @@ def _verse_blocks(light: str, title_keys: list, name_keys: list, name_score: flo
         current, heading = [], None
 
     for m in _VERSE_MARK.finditer(light):
-        raw = m.group(1).strip()
+        raw = (m.group(1) if m.group(1) is not None else m.group(2) or "").strip()
         if raw.isdigit():
             n = int(raw)
         elif current:
@@ -119,24 +144,42 @@ def _clean(text: str) -> str:
     return " ".join(text.split())
 
 
-def _first_line(text: str) -> str:
-    """Aadi Vakya = the opening line: up to the first danda when that is a real line."""
-    text = _clean(text).lstrip(_HEAD_TRIM + "0123456789")
-    head = re.split(r"[।॥]", text, maxsplit=1)[0].strip()
-    return head if len(head) >= 15 else text
+def _verse_count(marks) -> int:
+    """Highest verse number that fits the sequence. Books print a running Kruti number
+    after the last verse (॥ 6॥ ॥98॥) and OCR invents numbers (॥ 020 ॥); neither counts."""
+    fitting = [n for i, (n, _s, _e) in enumerate(marks) if n <= i + 4]
+    return max(fitting) if fitting else len(marks)
 
 
 def _letters(text: str) -> int:
     return len(re.sub(r"[\s\d।॥.,;:|()\[\]!?%^>“”\"'-]", "", text))
 
 
-def _last_line(text: str) -> str:
-    """Ant Vakya = the closing line: the text after the last danda before the final mark."""
-    text = _clean(text)
-    m = re.search(r"(.*?)\s*([।॥]\s*\S{0,3}\s*[।॥])\s*$", text)
-    body, mark = (m.group(1), m.group(2)) if m else (text, "")
-    tail = re.split(r"[।॥]", body)[-1].strip()
-    return (tail + " " + mark).strip() if len(tail) >= 15 else text
+# A sentence ends at a danda, ! ?, an ellipsis, or a full stop closing a line.
+_SENTENCE_END = re.compile(r"[।॥!?]+|\.{2,}|\.(?=[ \t]*(?:\n|$))")
+_LONG_SENTENCE = 160
+
+
+def _sentences(text: str) -> list:
+    """The Kruti's sentences, dropping refrain cues and verse numbers (under 8 letters)."""
+    out = []
+    for piece in _SENTENCE_END.split(text):
+        piece = _clean(piece).strip(_HEAD_TRIM + "0123456789,;()[]")
+        if _letters(piece) >= 8:
+            out.append(piece)
+    return out
+
+
+def _short(sentence: str) -> str:
+    if len(sentence) <= _LONG_SENTENCE:
+        return sentence
+    return sentence[:_LONG_SENTENCE].rsplit(" ", 1)[0] + " …"
+
+
+def _looks_like_list(text: str) -> bool:
+    """Index / contents / list pages: many page or serial numbers between few words."""
+    numbers = re.findall(r"\b\d{1,4}\b", text)
+    return len(numbers) >= 6 and len(numbers) * 6 > _letters(text) / 4
 
 
 def _split_title(opening: str):
@@ -169,44 +212,50 @@ def find_krutis(book, page_conf: dict, cfg, names=()) -> list:
         if len(marks) < cfg["min_verses"] and not heading:
             continue
 
-        aadi, j = _first_line(opening), 0
-        while _letters(aadi) < 5 and j + 1 < len(marks):   # opening held only numbers/marks
-            aadi = _first_line(book.light[marks[j][2]:marks[j + 1][2]])
-            j += 1
-        # the last verse; step back when it is only a refrain cue ("॥ मत । ॥")
-        opening_end = heading[1] if heading else block_start
-        i = len(marks) - 2
-        ant_from = marks[i][2] if i >= 0 else opening_end
-        while i >= 0 and _letters(book.light[ant_from:last[1]]) < 15:
-            i -= 1
-            ant_from = marks[i][2] if i >= 0 else opening_end
-        ant = _last_line(book.light[ant_from:last[2]])
-        verses = last[0] if first[0] == 1 else len(marks)
+        body = opening + book.light[first[2]:block_end]      # the Kruti's text after its title
+        sents = _sentences(body)
+        aadi = _short(sents[0]) if sents else ""
+        ant = _short(sents[-1]) if sents else ""
+        verses = _verse_count(marks)
         sp, ep = book.page_of_light(block_start), book.page_of_light(block_end - 1)
         confs = [page_conf.get(p, 100) for p in range(sp, ep + 1)]
-        low = min(confs) < cfg["low_ocr_confidence"] if confs else False
-        found.append(Kruti(book.name, sp, ep, verses, title, aadi, ant,
-                           "Low - check scan" if low else "OK", (block_start, block_end)))
+        checks = []
+        if not title:
+            checks.append("No heading found - check where it starts")
+        if not sents or any(len(x) > _LONG_SENTENCE for x in (sents[0], sents[-1])):
+            checks.append("Aadi/Ant is not one clear sentence")
+        if _looks_like_list(body):
+            checks.append("Looks like an index/list, not a Kruti")
+        if ep - sp + 1 > cfg["max_kruti_pages_check"]:
+            checks.append(f"Spans {ep - sp + 1} pages - may hold several Kruti")
+        if confs and min(confs) < cfg["low_ocr_confidence"]:
+            checks.append("Low OCR quality - check the scan")
+        found.append(Kruti(book.name, sp, ep, verses, title, aadi, ant, checks,
+                           (block_start, block_end), book.printed_page(sp),
+                           book.printed_page(ep)))
     return found
 
 
 def assign_groups(krutis: list, threshold: float = 88) -> None:
-    """One group ID per distinct Kruti. Rows matched to the same Excel Kruti share a group;
-    other rows join the group whose Aadi+Ant text is most alike (scripts are unified)."""
+    """One group number per distinct Kruti, numbered 1, 2, 3 ... in order of first
+    appearance. Rows matched to the same Excel Kruti share a group; other rows join the
+    group whose Aadi+Ant text is most alike (scripts are unified)."""
     groups, keys, by_excel = [], [], {}
     for k in krutis:
         key = key_only(k.aadi)[:120] + "|" + key_only(k.ant)[-120:]
         if k.kruti_no is not None and k.kruti_no in by_excel:
             gid = by_excel[k.kruti_no]
+        elif len(key) < 12:                  # no text to compare: a group of its own
+            gid = len(set(groups)) + 1
         else:
             match = process.extractOne(key, keys, scorer=fuzz.ratio,
                                        score_cutoff=threshold) if keys else None
             if match:
                 gid = groups[match[2]]
             else:
-                gid = f"G-{len(set(groups)) + 1:04d}"
+                gid = len(set(groups)) + 1
             if k.kruti_no is not None:
                 by_excel[k.kruti_no] = gid
         groups.append(gid)
         keys.append(key)
-        k.group_id = gid
+        k.group_no = gid
