@@ -134,6 +134,10 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
             if re.fullmatch(r"\s*\(\s*[^\s()\d]{1,2}\s*\)\s*", line) or \
                     re.match(r"\s*\(?\s*राग\s*[:\-–]", line):
                 return base + pos, base + pos + len(line), ""
+            # "लावणी," - a Kruti-type word alone on its line, closed by a comma
+            only = re.fullmatch(r"[\s।॥|]*(\S+?)\s*,\s*", line)
+            if only and key_only(only.group(1)) in title_keys:
+                return base + pos, base + pos + len(line), only.group(1)
         m = _PHRASE.match(text, pos)
         if not m or text.startswith("..", m.start(3)):   # "…रयण भंडार... 1..." is a verse
             continue
