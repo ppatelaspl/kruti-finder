@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Kruti Finder (command line). The desktop app uses the same engine.
 
-  python kruti_finder.py run   --excel kruti.xlsx --books ./books --out ./output
-  python kruti_finder.py merge --excel kruti.xlsx \
-        --results ./output/Kruti_Results.xlsx --out Kruti_Master_v2.xlsx
+  python kruti_finder.py --excel kruti.xlsx --books ./books --out ./output
 
---books accepts one or more PDF files and/or folders.
+--books accepts one or more PDF files and/or folders. Writes output/Kruti_Results.xlsx:
+every Kruti found in the books, flagged as in the Excel (same/other script) or new.
 """
 import argparse
 import logging
@@ -14,7 +13,7 @@ from pathlib import Path
 
 from kruti.config import merged
 from kruti.ocr_setup import configure_ocr
-from kruti.pipeline import Cancelled, merge, run
+from kruti.pipeline import Cancelled, run
 
 log = logging.getLogger("kruti")
 
@@ -31,23 +30,13 @@ def main():
     here = Path(__file__).resolve().parent
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--config", default=str(here / "config.yaml"))
-    sub = ap.add_subparsers(dest="cmd", required=True)
-    r = sub.add_parser("run", help="Scan books and build the Excel outputs")
-    r.add_argument("--excel", required=True)
-    r.add_argument("--books", required=True, nargs="+", help="PDF files and/or folders")
-    r.add_argument("--out", default="output")
-    m = sub.add_parser("merge", help="Add approved new Kruti to a new master Excel")
-    m.add_argument("--excel", required=True, help="The team's Kruti Excel")
-    m.add_argument("--results", required=True, help="Reviewed Kruti_Results.xlsx")
-    m.add_argument("--out", required=True)
+    ap.add_argument("--excel", required=True, help="The team's Kruti Excel")
+    ap.add_argument("--books", required=True, nargs="+", help="PDF files and/or folders")
+    ap.add_argument("--out", default="output")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
     cfg = load_config(args.config)
-    if args.cmd == "merge":
-        added, total = merge(args.excel, args.results, args.out, cfg)
-        log.info("Added %d approved Kruti. Master now has %d rows: %s", added, total, args.out)
-        return
 
     status = configure_ocr(cfg)
     log.info(status["message"])

@@ -5,7 +5,7 @@ import traceback
 
 from PySide6.QtCore import QObject, Signal
 
-from kruti.pipeline import Cancelled, Controller, merge, run
+from kruti.pipeline import Cancelled, Controller, run
 
 
 class _SignalLogHandler(logging.Handler):
@@ -47,19 +47,3 @@ class RunWorker(QObject):
             self.failed.emit(traceback.format_exc())
         finally:
             engine_log.removeHandler(handler)
-
-
-class MergeWorker(QObject):
-    finished = Signal(int, int)
-    failed = Signal(str)
-
-    def __init__(self, excel, results, out):
-        super().__init__()
-        self.excel, self.results, self.out = excel, results, out
-
-    def run(self):
-        try:
-            added, total = merge(self.excel, self.results, self.out)
-            self.finished.emit(added, total)
-        except Exception as e:                      # noqa: BLE001
-            self.failed.emit(f"{e}\n\n{traceback.format_exc()}")

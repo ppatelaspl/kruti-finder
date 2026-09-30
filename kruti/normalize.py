@@ -39,6 +39,23 @@ def gujarati_to_devanagari(text: str) -> str:
     )
 
 
+def devanagari_to_gujarati(text: str) -> str:
+    """For showing a Gujarati book's text in its own script (dandas stay as they are)."""
+    return "".join(
+        chr(ord(c) + _GUJ_TO_DEV_OFFSET) if 0x0900 <= ord(c) <= 0x097F and c not in "।॥" else c
+        for c in text
+    )
+
+
+def script_of(text: str) -> str:
+    """'Gujarati' or 'Devanagari' by majority of letters; '' when neither is present."""
+    guj = sum(1 for c in text or "" if _GUJ_START <= ord(c) <= _GUJ_END)
+    dev = sum(1 for c in text or "" if 0x0900 <= ord(c) <= 0x097F and c not in "।॥")
+    if not guj and not dev:
+        return ""
+    return "Gujarati" if guj > dev else "Devanagari"
+
+
 def light_normalize(text: str) -> str:
     """Readable, script-unified text. Keeps digits, dandas and single spaces."""
     text = unicodedata.normalize("NFC", text or "").translate(_ZERO_WIDTH)

@@ -1,9 +1,12 @@
 # Kruti Finder
 
-The team's Excel covers only part of the books. Kruti Finder does two jobs:
+Kruti Finder reads PDF books (scanned or not) and lists **every Kruti it finds**, with the file and book name, title, Aadi Vakya, Ant Vakya and start/end page. Each Kruti is compared with the team's Kruti Excel and flagged:
 
-1. **New Kruti.** It finds every Kruti in the books that is **not in the team's Excel**, and writes them in the team's own Excel format: title, Aadi Vakya, Ant Vakya, book and start/end page. The team then only reviews and approves, instead of reading every book manually.
-2. **Excel Kruti in other books.** For every Kruti already in the Excel, it lists **all books** it appears in, with page ranges. The Excel does not record which book the team worked from, so every copy is listed.
+- **Matched - same script:** in the Excel, printed in the same script (Devanagari or Gujarati) as the Excel entry;
+- **Matched - other script:** in the Excel, but this book prints it in the other script;
+- **New:** not in the Excel.
+
+The same Kruti in several books, places or scripts shares one **Group ID**.
 
 ## Desktop app
 
@@ -16,26 +19,15 @@ The command-line version described below uses the same engine and gives identica
 
 ## How it works
 
-1. **Read each page.** If the PDF has a proper Unicode text layer it is used directly. If the page is a scan, or the text layer is garbage (old legacy Gujarati/Hindi fonts, broken conjuncts), the page is OCR'd. OCR results are cached in `.kruti_cache/`, so a stopped or repeated run never OCRs the same page twice.
-2. **Normalise.** Gujarati script is converted to Devanagari. The Excel's `#…#` markers and `{variant}` readings are removed. Common spelling variants are treated as equal (ण/न, श/ष/स, ब/व, ी/ि, ू/ु, ै/े …), and digits, punctuation and spaces are ignored while matching.
-3. **Find start and end.** Aadi Vakya is searched with its first part, and Ant Vakya with its last part (text after `...`). The search works like finding a house by first going to the right pincode and then checking door-to-door. A quick index shortlists a few likely spots in the book, and only those are compared carefully (fuzzy match, so OCR mistakes are tolerated).
-4. **Classify each Kruti.**
-   - **Found**: start and end both match ≥ 85%, in order, within 40 pages.
-   - **Partially Found**: only the start or only the end matches, or one end is a weak match. The Note column says which.
-   - **Not Found**: nothing in any book.
-
-   Lines in a book's index page (`first line ....... 12`) are ignored.
-5. **Find missing Kruti.** A new Kruti starts wherever verse numbers restart at ॥1॥, or at a heading ending in a Kruti-type word (स्तवन, सज्झाय, गीत, पद …; configurable in `title_keywords`). Numbers garbled by OCR (॥[॥) are inferred from the sequence.
-
-   For every block not already in the Excel, the tool records:
+1. **Read each page.** If the PDF has a proper Unicode text layer it is used directly. If the page is a scan, or the text layer is garbage (old legacy Gujarati/Hindi fonts, broken conjuncts), the page is OCR'd. OCR results are cached, so a stopped or repeated run never OCRs the same page twice.
+2. **Clean up.** Running headers, footers and page numbers are removed, so they never leak into the Vakya text or break a Kruti that crosses a page.
+3. **Split into Kruti.** A new Kruti starts wherever verse numbers restart at ॥1॥, or at a heading ending in a Kruti-type word (स्तवन, सज्झाय, गीत, पद …; configurable in `title_keywords`). Numbers garbled by OCR (॥[॥) are inferred from the sequence. For each Kruti the tool records:
    - **Title:** the heading lines above verse 1;
    - **Aadi Vakya:** the first verse;
    - **Ant Vakya:** the last verse;
-   - **pages.**
-
-   The same Kruti found in several books or editions, even one in Gujarati script and one in Devanagari, shares **one Temp ID**, with one row per book and page range.
-
-   Running headers, footers and page numbers are removed first, so they never leak into the Vakya text or break a Kruti that crosses a page.
+   - **pages** and **number of verses**.
+4. **Compare with the Excel.** Gujarati is converted to Devanagari and common spelling variants are treated as equal (ण/न, श/ष/स, ब/व, ी/ि …); the Excel's `#…#` markers and `{variant}` readings are ignored. Each Excel Kruti's Aadi Vakya and Ant Vakya are searched in the book with a fuzzy match, so OCR mistakes are tolerated (both must match ≥ 85%, in order, within 40 pages). A Kruti from the book that such a match covers gets the Excel's Kruti क्रमांक and name, and a *same script* or *other script* flag. An Excel Kruti matched in a book where no verse numbers split it out is still listed.
+5. **Group copies.** Rows matched to the same Excel Kruti share a Group ID; new Kruti join the group whose text is most alike, across scripts.
 
 ## Command line: setup (one time)
 
@@ -51,59 +43,49 @@ Install Tesseract OCR with the Hindi, Gujarati and Sanskrit languages:
 - **Mac:** `brew install tesseract tesseract-lang`
 - **Ubuntu:** `sudo apt install tesseract-ocr tesseract-ocr-hin tesseract-ocr-guj tesseract-ocr-san`
 
-For old printed books, replace `hin/guj/san.traineddata` with the **tessdata_best** models (github.com/tesseract-ocr/tessdata_best). They are slower but noticeably more accurate.
-
 ## Run
 
 ```bash
-python kruti_finder.py run --excel Kruti_Master.xlsx --books "D:\Books" --out output
+python kruti_finder.py --excel Kruti_Master.xlsx --books "D:\Books" --out output
 ```
 
-It writes one file to `output/`: **`Kruti_Results.xlsx`**. The books folder may contain sub-folders. Books are identified by their PDF file name, so name files meaningfully (e.g. `B052034_kshama_kalyan_kruti_sangrah_part_01.pdf`).
+`--books` takes PDF files and/or folders (sub-folders included). It writes one file: **`output/Kruti_Results.xlsx`**.
 
 ## Output: `Kruti_Results.xlsx`
 
-| Sheet | Use |
+One sheet, **Kruti Found**, one row per Kruti found in a book:
+
+| Column | Meaning |
 |---|---|
-| New Kruti | Every Kruti found in the books that is **not in the Excel**, one row per book and page range. The same Kruti in several books or pages shares one Temp ID; its rows stay together and are shaded as one block. Columns: Temp ID, the Excel's four columns (कृति क्र. left blank for the team), File Name, Start Page, End Page, No. of Verses, No. of Books, OCR Quality, Approve (Y/N), Remarks. Grey columns are for the team. |
-| Excel Kruti | The Excel's own Kruti with Status (Found / Partially Found / Not Found), File Name and pages, one row per book it was found in. |
-
-## Team review loop
-
-1. Reviewers work through the **New Kruti** sheet.
-   - Fill in the real Kruti No. (left blank, the Temp ID is used).
-   - Check the title.
-   - Correct Aadi/Ant text on rows marked "OCR Quality: Low".
-   - Set Approve = `Y` for real Kruti. One row per Temp ID is enough; the Kruti is added once.
-2. Reviewers check **Partially Found** rows on the **Excel Kruti** sheet. Usually the book text differs from the Excel, or OCR on that page was poor.
-3. Merge the approved Kruti into a new master (the app's *Merge Reviewed File* tab does the same):
-
-   ```bash
-   python kruti_finder.py merge --excel Kruti_Master.xlsx --results output/Kruti_Results.xlsx --out Kruti_Master_v2.xlsx
-   ```
-
-4. Use the new master for the next run. Coverage improves with every cycle.
+| Group ID | `G-0001` … The same Kruti in several books/places/scripts shares the ID; its rows stay together and are shaded as one block. |
+| File Name, Book Name | The PDF file, and a readable book name (the PDF's title, or the file name without the library code and catalogue tags) |
+| Kruti क्रमांक, Kruti Name | From the Excel when matched; for new Kruti the name is the title read from the book |
+| Aadi Vakya, Ant Vakya | As printed in this book, in its own script |
+| Start Page, End Page, No. of Verses | PDF page numbers; verses in this copy |
+| Script | Devanagari or Gujarati, as printed in this book |
+| In Excel? | Matched - same script / Matched - other script / New |
+| Match % | The weaker of the Aadi and Ant matches |
+| OCR Quality | "Low - check scan" when a page was hard to read: check the text against the page |
+| Remarks | For the team (grey) |
 
 ## Tuning (`config.yaml`)
 
-- **Too many Partially Found on good pages:** lower `found_threshold` to 80. Too many wrong Found: raise it to 90.
-- **Missing list too long:** raise `gap_min_verses`.
+- **Too few matches on good pages:** lower `found_threshold` to 80. Wrong matches: raise it to 90.
+- **Too many tiny Kruti listed:** raise `min_verses`.
 - **Kruti wrongly split or fused:** add the book's Kruti-type words to `title_keywords`.
-- **Machine slows down during OCR:** keep `ocr_workers: 2` on 8 GB RAM machines. Each worker uses about 1 GB. Use 4–6 on a 16–32 GB desktop.
+- **Copies not grouped (or different Kruti grouped):** lower (or raise) `duplicate_threshold`.
+- **Machine slows down during OCR:** keep `ocr_workers: 2` on 8 GB RAM machines. Use 4–6 on a 16–32 GB desktop.
 - **Poor OCR confidence across many books:** set `ocr_engine: google_vision` (see below).
 
 ## Scale and cost (estimates, verify on a pilot)
 
-- **Matching** takes about 2 ms per Kruti per book. 40,000 Kruti × 200 books is roughly 4–5 hours; 114 Kruti is minutes.
-- **OCR with Tesseract** takes about 3–6 s per page per worker. For example, 30,000 scanned pages with 2 workers is roughly 15–25 hours. It can run overnight and resumes from the cache if interrupted.
+- **OCR with Tesseract** takes about 1.5–3 s per page with 4 parallel jobs on a 4-core PC. For example, 30,000 scanned pages is roughly 12–25 hours. It can run overnight and resumes from the cache if interrupted.
 - **Google Cloud Vision** (`ocr_engine: google_vision`) is much better on old prints and fast. At roughly US$1.50 per 1,000 pages at time of writing, 30,000 pages is about US$45. Needs `pip install google-cloud-vision` and a service-account key in `GOOGLE_APPLICATION_CREDENTIALS`.
   > This engine has **not been tested** against real books yet. Try it on one book first.
 
 ## Known limits
 
-- **Manuscript or old-script pages** (handwritten, padimatra, heavily damaged) are not read reliably by any off-the-shelf OCR. Rows from such pages are marked "OCR Quality: Low"; treat Not Found in those books as "unchecked".
-- **Splitting relies on verse numbers and headings.** Kruti printed without verse numbers or a type-word heading (e.g. a single unnumbered doha) are not detected as new Kruti.
+- **Manuscript or old-script pages** (handwritten, padimatra, heavily damaged) are not read reliably by any off-the-shelf OCR. Rows from such pages are marked "OCR Quality: Low".
+- **Splitting relies on verse numbers and headings.** Kruti printed without verse numbers or a type-word heading (e.g. a single unnumbered doha) are not detected.
 - **Titles are a first draft.** They may include a raga/dhal line or miss a title placed below verse 1, and always need a reviewer's check.
-- **One book = one PDF.** If a book is split across several PDFs, a Kruti crossing the split will show as Partially Found in both parts.
-- **Missing Kruti depend on the Excel.** Every Kruti in the books, by any author, is compared with the Excel entries; whatever is not in the Excel is listed as missing.
-- **Excel entries with typos** may show as Partially Found. The tool does not list their block as missing, so the Kruti is never entered twice.
+- **One book = one PDF.** If a book is split across several PDFs, a Kruti crossing the split is listed in both parts.

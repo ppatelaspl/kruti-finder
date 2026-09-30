@@ -59,8 +59,7 @@ To uninstall: `sudo apt remove kruti-finder`
    - The panel also shows elapsed time, time left, pages OCR'd, and Kruti found.
    - **Pause** / **Resume** at any time.
    - **Cancel** stops after the current page. Everything read so far is saved, so the next Start continues quickly instead of starting over. The same applies if the computer restarts or the app is closed.
-5. When done, click **Open Missing Kruti file**.
-6. After the team reviews it (Approve = Y), use the **Merge Reviewed File** tab to create the new master Excel.
+5. When done, click **Open results (Excel)**. `Kruti_Results.xlsx` lists every Kruti found in the books, flagged *Matched - same script*, *Matched - other script* or *New*; the same Kruti in several books or scripts shares one Group ID.
 
 **Tips**
 

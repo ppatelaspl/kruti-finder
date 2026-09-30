@@ -23,7 +23,6 @@ QPushButton#danger {{ border-color: {PINK}; color: {PINK}; }}
 QProgressBar {{ border: 1px solid {GREY}; border-radius: 6px; text-align: center; height: 20px; }}
 QProgressBar::chunk {{ background: {GOLD}; border-radius: 5px; }}
 QProgressBar#book::chunk {{ background: {ORANGE}; }}
-QTabWidget::pane {{ border: none; }}
 QTabBar::tab {{ padding: 8px 18px; border-bottom: 3px solid transparent; }}
 QTabBar::tab:selected {{ border-bottom: 3px solid {GOLD}; font-weight: 700; }}
 QLabel#stat {{ font-size: 16px; font-weight: 700; }}

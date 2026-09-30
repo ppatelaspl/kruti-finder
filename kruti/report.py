@@ -1,17 +1,12 @@
-"""Write the results workbook and merge approved new Kruti into an updated Kruti master.
-
-One file, Kruti_Results.xlsx:
-  New Kruti   - every Kruti found in the books that is not in the Excel; one row per book
-                and page range, rows of the same Kruti kept together under one Temp ID
-  Excel Kruti - the Excel's own Kruti: where each was found, or Not Found
-"""
-from openpyxl import Workbook, load_workbook
+"""Write Kruti_Results.xlsx: every Kruti found in the books, one row each, flagged as in
+the input Excel (same or other script) or new. Rows of the same Kruti - across books,
+places and scripts - share a group ID and are kept together."""
+from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
-from openpyxl.worksheet.datavalidation import DataValidation
 
 RESULTS_FILE = "Kruti_Results.xlsx"
-NEW_SHEET, KNOWN_SHEET = "New Kruti", "Excel Kruti"
+SHEET = "Kruti Found"
 
 # Aspire brand palette only
 GOLD, ORANGE, RED, PINK, PLUM, NAVY, GREY = (
@@ -22,10 +17,11 @@ FONT = "Outfit"
 _HEADER_FILL = PatternFill("solid", fgColor=NAVY)
 _INPUT_FILL = PatternFill("solid", fgColor=GREY)
 _BAND_FILL = PatternFill("solid", fgColor=BAND)
+MATCH_SAME, MATCH_OTHER, NEW = "Matched - same script", "Matched - other script", "New"
 _STATUS_STYLE = {
-    "Found": (GOLD, NAVY),
-    "Partially Found": (ORANGE, "FFFFFF"),
-    "Not Found": (PINK, "FFFFFF"),
+    MATCH_SAME: (GOLD, NAVY),
+    MATCH_OTHER: (ORANGE, "FFFFFF"),
+    NEW: (PINK, "FFFFFF"),
 }
 _THIN = Side(style="thin", color=GREY)
 _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
@@ -78,84 +74,29 @@ def _page(v):
 
 
 # ------------------------------------------------------------------ results
-NEW_COLUMNS = ["Temp ID"]            # + the Excel's 4 columns + these:
-NEW_EXTRA = ["File Name", "Start Page", "End Page", "No. of Verses", "No. of Books",
-             "OCR Quality", "Approve (Y/N)", "Remarks"]
-KNOWN_EXTRA = ["Status", "File Name", "Start Page", "End Page", "Note"]
+COLUMNS = ["Group ID", "File Name", "Book Name", "Kruti क्रमांक", "Kruti Name",
+           "Aadi Vakya (आदिवाक्य)", "Ant Vakya (अंत वाक्य)", "Start Page", "End Page",
+           "No. of Verses", "Script", "In Excel?", "Match %", "OCR Quality", "Remarks"]
 
 
-def write_results(path, groups, krutis, results, source_columns):
+def write_results(path, krutis):
     wb = Workbook()
-    cols = list(source_columns[:4])
-
-    # ---- sheet 1: new Kruti, one row per book/page range, grouped by Temp ID
     ws = wb.active
-    ws.title = NEW_SHEET
+    ws.title = SHEET
     rows = []
-    for g in groups:
-        copies = [g] + g.copies
-        books = len({c.book for c in copies})
-        for c in sorted(copies, key=lambda c: (c.book, c.start_page)):
-            rows.append([g.temp_id, "", c.title, c.aadi, c.ant, c.book, c.start_page,
-                         c.end_page, c.verses, books, c.ocr_quality, "", ""])
-    n = len(NEW_COLUMNS) + len(cols)           # 5: Temp ID + Excel's 4 columns
-    approve_col = n + NEW_EXTRA.index("Approve (Y/N)") + 1
-    ocr_col = n + NEW_EXTRA.index("OCR Quality") + 1
-    _table(ws, NEW_COLUMNS + cols + NEW_EXTRA, rows,
-           [11, 11, 28, 50, 50, 42, 9, 9, 9, 9, 14, 11, 30],
-           wrap_cols=(3, 4, 5, 6, n + len(NEW_EXTRA)), group_col=1,
-           input_cols=(2, approve_col, approve_col + 1))
-    if rows:
-        dv = DataValidation(type="list", formula1='"Y,N"', allow_blank=True)
-        ws.add_data_validation(dv)
-        letter = ws.cell(1, approve_col).column_letter
-        dv.add(f"{letter}2:{letter}{ws.max_row}")
+    for k in sorted(krutis, key=lambda k: (k.group_id, k.book, k.start_page or 0)):
+        rows.append([k.group_id, k.book, k.book_name,
+                     "" if k.kruti_no is None else k.kruti_no,
+                     k.kruti_name or k.title, k.aadi, k.ant,
+                     _page(k.start_page), _page(k.end_page),
+                     "" if k.verses is None else k.verses, k.script, k.match,
+                     "" if k.match_score is None else k.match_score, k.ocr_quality, ""])
+    col = {c: i + 1 for i, c in enumerate(COLUMNS)}
+    _table(ws, COLUMNS, rows, [10, 36, 26, 11, 26, 48, 48, 8, 8, 8, 11, 21, 8, 14, 28],
+           wrap_cols=(2, 3, 5, 6, 7, col["Remarks"]), group_col=1,
+           status_col=col["In Excel?"], input_cols=(col["Remarks"],))
     for r in ws.iter_rows(min_row=2):
-        if r[ocr_col - 1].value != "OK":
-            r[ocr_col - 1].font = Font(name=FONT, bold=True, color=RED)
-
-    # ---- sheet 2: the Excel's Kruti, one row per book they were found in
-    ws = wb.create_sheet(KNOWN_SHEET)
-    rows = []
-    for k in krutis:
-        occ = results.get(k["id"], [])
-        found = [o for o in occ if o.status == "Found"]
-        if not occ:
-            rows.append(list(k["raw"][:4]) + ["Not Found", "", "", "", "Not located in any book"])
-        seen = set()
-        for o in found + [o for o in occ if o.status != "Found"]:
-            where = (o.book, o.start_page, o.end_page)
-            if where in seen:            # the same book and pages once, even if matched twice
-                continue
-            seen.add(where)
-            rows.append(list(k["raw"][:4]) + [o.status, o.book, _page(o.start_page),
-                                              _page(o.end_page), o.note])
-    _table(ws, cols + KNOWN_EXTRA, rows, [11, 28, 50, 50, 16, 42, 9, 9, 36],
-           wrap_cols=(2, 3, 4, 6, 9), status_col=5)
+        cell = r[col["OCR Quality"] - 1]
+        if cell.value != "OK":
+            cell.font = Font(name=FONT, bold=True, color=RED)
     wb.save(path)
-
-
-# ------------------------------------------------------------------ merge
-def merge_approved(master_rows, headers, results_path, out_path):
-    """Append each new Kruti approved (Y) in the results once, after the Excel's own rows."""
-    ws = load_workbook(results_path)[NEW_SHEET]
-    head = [c.value for c in ws[1]]
-    col = {h: i for i, h in enumerate(head)}
-    rows = [list(r) for r in master_rows]
-    seen, added = set(), 0
-    for r in ws.iter_rows(min_row=2, values_only=True):
-        temp_id = r[col["Temp ID"]]
-        if str(r[col["Approve (Y/N)"]] or "").strip().upper() != "Y" or temp_id in seen:
-            continue
-        seen.add(temp_id)
-        added += 1
-        new = [r[1] or temp_id, r[2] or "", r[3], r[4]]      # Kruti No., name, Aadi, Ant
-        rows.append((new + [""] * len(headers))[:len(headers)])
-
-    out = Workbook()
-    ws = out.active
-    ws.title = "Kruti Master"
-    _table(ws, list(headers), rows, [11, 30, 55, 55] + [16] * max(0, len(headers) - 4),
-           wrap_cols=(2, 3, 4))
-    out.save(out_path)
-    return added, len(rows)

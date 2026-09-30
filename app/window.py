@@ -9,7 +9,7 @@ from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QFileDialog, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
     QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit,
-    QFrame, QProgressBar, QPushButton, QScrollArea, QSpinBox, QTabWidget, QVBoxLayout,
+    QFrame, QProgressBar, QPushButton, QScrollArea, QSpinBox, QVBoxLayout,
     QWidget)
 
 from kruti.config import merged
@@ -17,7 +17,7 @@ from kruti.ocr_setup import configure_ocr, resource_dir
 from kruti.pipeline import collect_pdfs
 
 from .version import __version__
-from .worker import MergeWorker, RunWorker
+from .worker import RunWorker
 
 
 def _fmt_time(sec):
@@ -92,12 +92,9 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(root)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._header())
-        tabs = QTabWidget()
-        tabs.addTab(_scrollable(self._find_tab()), "Find Kruti")
-        tabs.addTab(_scrollable(self._merge_tab()), "Merge Reviewed File")
-        layout.addWidget(tabs)
+        layout.addWidget(_scrollable(self._find_tab()))
         self.setCentralWidget(root)
-        # fit smaller laptop screens (e.g. 1366x768); the tabs scroll when space runs out
+        # fit smaller laptop screens (e.g. 1366x768); the page scrolls when space runs out
         avail = self.screen().availableGeometry()
         self.resize(min(980, avail.width() - 40), min(860, avail.height() - 60))
         self._load_settings()
@@ -110,7 +107,7 @@ class MainWindow(QMainWindow):
         h.setContentsMargins(20, 12, 20, 12)
         col = QVBoxLayout()
         col.addWidget(QLabel("Kruti Finder", objectName="title"))
-        col.addWidget(QLabel("Map Kruti to books · find Kruti not yet in the Excel",
+        col.addWidget(QLabel("Read the books · list every Kruti · flag the ones in the Excel",
                              objectName="subtitle"))
         h.addLayout(col)
         h.addStretch()
@@ -204,11 +201,9 @@ class MainWindow(QMainWindow):
         inner = QWidget()
         form = QFormLayout(inner)
         self.workers_spin = QSpinBox(minimum=1, maximum=max(1, os.cpu_count() or 1))
-        self.threshold_spin = QSpinBox(minimum=70, maximum=98)
         clear = QPushButton("Clear saved OCR results")
         clear.clicked.connect(self._clear_cache)
         form.addRow("Parallel OCR jobs", self.workers_spin)
-        form.addRow("Match threshold (%)", self.threshold_spin)
         form.addRow("", clear)
         lay = QVBoxLayout(box)
         lay.addWidget(inner)
@@ -231,8 +226,7 @@ class MainWindow(QMainWindow):
         g.addWidget(self.book_label, 3, 0, 1, 5)
         self.stats = {}
         for col, (key, cap) in enumerate((("elapsed", "Elapsed"), ("eta", "Time left"),
-                                          ("ocr", "Pages OCR'd"), ("found", "Excel Kruti found"),
-                                          ("new", "New Kruti (so far)"))):
+                                          ("ocr", "Pages OCR'd"), ("found", "Kruti found"))):
             val = QLabel("–", objectName="stat")
             c = QVBoxLayout()
             c.addWidget(val)
@@ -241,41 +235,10 @@ class MainWindow(QMainWindow):
             self.stats[key] = val
         return box
 
-    def _merge_tab(self):
-        page = QWidget(objectName="page")
-        v = QVBoxLayout(page)
-        info = QLabel("After the team has reviewed <b>Kruti_Results.xlsx</b> (Approve = Y, real "
-                      "Kruti No. filled in), add the approved new Kruti to a copy of the Kruti "
-                      "Excel. Each approved Kruti is added once, even if it is in several books.")
-        info.setWordWrap(True)
-        v.addWidget(info)
-        form = QFormLayout()
-        self.m_excel, r1 = self._file_row("The team's Kruti Excel", lambda: self._pick_into(
-            self.m_excel, "Kruti Excel"))
-        self.m_results, r2 = self._file_row("Reviewed Kruti_Results.xlsx", lambda: self._pick_into(
-            self.m_results, "Kruti_Results.xlsx"))
-        self.m_out, r3 = self._file_row("New master file to create", self._pick_merge_out)
-        form.addRow("Kruti Excel", r1)
-        form.addRow("Reviewed results", r2)
-        form.addRow("Save new master as", r3)
-        v.addLayout(form)
-        self.merge_btn = QPushButton("Merge approved Kruti", objectName="primary")
-        self.merge_btn.clicked.connect(self._merge)
-        row = QHBoxLayout()
-        row.addWidget(self.merge_btn)
-        row.addStretch()
-        v.addLayout(row)
-        self.merge_status = QLabel("")
-        self.merge_status.setWordWrap(True)
-        v.addWidget(self.merge_status)
-        v.addStretch()
-        return page
-
     # ------------------------------------------------------------------ settings
     def _load_settings(self):
         s, d = self.settings, merged(None)
         self.excel_edit.setText(s.value("excel", ""))
-        self.m_excel.setText(self.excel_edit.text())
         default_out = Path(QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation)) \
             / "Kruti Finder"
         self.out_edit.setText(s.value("out", str(default_out)))
@@ -283,7 +246,6 @@ class MainWindow(QMainWindow):
         saved = [saved] if isinstance(saved, str) else list(saved or [])  # Qt returns 1 item as str
         self.books.add_paths([p for p in saved if p and Path(p).exists()])
         self.workers_spin.setValue(int(s.value("workers", d["ocr_workers"])))
-        self.threshold_spin.setValue(int(s.value("threshold", d["found_threshold"])))
 
     def _save_settings(self):
         s = self.settings
@@ -291,12 +253,10 @@ class MainWindow(QMainWindow):
         s.setValue("out", self.out_edit.text())
         s.setValue("books", self.books.paths())
         s.setValue("workers", self.workers_spin.value())
-        s.setValue("threshold", self.threshold_spin.value())
 
     def _config(self):
         return merged({
             "ocr_workers": self.workers_spin.value(),
-            "found_threshold": self.threshold_spin.value(),
             "cache_dir": str(data_dir() / "ocr_cache"),
         })
 
@@ -342,19 +302,6 @@ class MainWindow(QMainWindow):
         d = QFileDialog.getExistingDirectory(self, "Save results to", self.out_edit.text())
         if d:
             self.out_edit.setText(d)
-
-    def _pick_into(self, edit, name):
-        start = str(Path(self.out_edit.text()))
-        f, _ = QFileDialog.getOpenFileName(self, name, start, "Excel files (*.xlsx)")
-        if f:
-            edit.setText(f)
-
-    def _pick_merge_out(self):
-        f, _ = QFileDialog.getSaveFileName(self, "Save new master as",
-                                           str(Path(self.out_edit.text()) / "Kruti_Master_v2.xlsx"),
-                                           "Excel files (*.xlsx)")
-        if f:
-            self.m_out.setText(f if f.lower().endswith(".xlsx") else f + ".xlsx")
 
     def _clear_cache(self):
         cache = data_dir() / "ocr_cache"
@@ -448,7 +395,6 @@ class MainWindow(QMainWindow):
         self.stats["eta"].setText(_fmt_time(p.eta) if p.stage != "Done" else "0m 00s")
         self.stats["ocr"].setText(f"{p.ocr_pages:,}")
         self.stats["found"].setText(f"{p.kruti_found:,}")
-        self.stats["new"].setText(f"{p.new_kruti_blocks:,}")
 
     def _log(self, text):
         self.log_view.appendPlainText(f"{time.strftime('%H:%M:%S')}  {text}")
@@ -457,15 +403,11 @@ class MainWindow(QMainWindow):
         self.result = res
         self._set_running(False)
         self.results_bar.show()
-        s = res.status_counts
-        msg = (f"Finished {res.books} books.\n\nExcel Kruti: {s.get('Found', 0)} found, "
-               f"{s.get('Partially Found', 0)} partial, {s.get('Not Found', 0)} not found.\n"
-               f"New Kruti not in the Excel: {res.new_kruti}.")
+        msg = (f"Finished {res.books} books.\n\n{res.places:,} Kruti found: "
+               f"{res.in_excel:,} in the Excel, {res.places - res.in_excel:,} new.\n"
+               f"{res.krutis:,} distinct Kruti (copies share a Group ID).")
         if res.skipped:
             msg += f"\n\n{len(res.skipped)} file(s) could not be read - see the log."
-        self.stats["new"].setText(f"{res.new_kruti:,}")   # after grouping copies across books
-        self.m_excel.setText(self.excel_edit.text())
-        self.m_results.setText(res.results_path)
         QMessageBox.information(self, "Kruti Finder", msg)
 
     def _on_failed(self, err):
@@ -494,36 +436,6 @@ class MainWindow(QMainWindow):
         if self.thread:
             self.thread.deleteLater()
         self.worker = self.thread = None
-
-    # ------------------------------------------------------------------ merge
-    def _merge(self):
-        excel, res, out = (e.text().strip() for e in (self.m_excel, self.m_results, self.m_out))
-        if not (Path(excel).is_file() and Path(res).is_file() and out):
-            QMessageBox.warning(self, "Merge", "Select the Kruti Excel, the reviewed results "
-                                               "file and where to save the new master.")
-            return
-        self.merge_btn.setEnabled(False)
-        self.merge_status.setText("Merging…")
-        self._m_thread = QThread(self)
-        self._m_worker = MergeWorker(excel, res, out)
-        self._m_worker.moveToThread(self._m_thread)
-        self._m_thread.started.connect(self._m_worker.run)
-        self._m_worker.finished.connect(self._merge_done)
-        self._m_worker.failed.connect(self._merge_failed)
-        self._m_worker.finished.connect(self._m_thread.quit)
-        self._m_worker.failed.connect(self._m_thread.quit)
-        self._m_thread.start()
-
-    def _merge_done(self, added, total):
-        self.merge_btn.setEnabled(True)
-        self.merge_status.setText(f"Added {added} approved Kruti. The new master has {total} "
-                                  f"rows:\n{self.m_out.text()}")
-        _open(Path(self.m_out.text()).parent)
-
-    def _merge_failed(self, err):
-        self.merge_btn.setEnabled(True)
-        self.merge_status.setText("Merge failed.")
-        QMessageBox.critical(self, "Merge", err)
 
     # ------------------------------------------------------------------ close
     def closeEvent(self, e):

@@ -19,19 +19,19 @@ tesseract_cmd: ""              # full path to tesseract.exe on Windows, if not o
 google_language_hints: ["hi", "gu", "sa"]
 ocr_dpi: 300
 ocr_workers: 2                 # parallel OCR jobs; ~300-500 MB RAM each
-low_ocr_confidence: 70         # pages below this are flagged in the Page Log
+low_ocr_confidence: 70         # Kruti on pages below this get "OCR Quality: Low"
 cache_dir: ".kruti_cache"      # OCR results are reused on re-runs
 
-# ---------------- Matching ----------------
+# ---------------- Matching to the Excel ----------------
 found_threshold: 85            # match % for a start/end to count as found
 min_candidate_score: 65        # weaker hits are ignored
 query_max_chars: 160           # longest part of a Vakya used for search
 max_kruti_pages: 40            # end must be within this many pages of the start
 
-# ---------------- Gap detection ----------------
-gap_min_verses: 2              # ignore numbered blocks shorter than this
-gap_max_verse_chars: 600       # how far back from verse 1 to take the opening text
+# ---------------- Kruti detection ----------------
+min_verses: 2                  # ignore numbered blocks shorter than this
+max_opening_chars: 600         # how far back from verse 1 to take the title and opening
 title_keywords: ["स्तवन", "सज्झाय", "स्तुति", "थोय", "चैत्यवंदन", "गीत", "पद", "लावणी",
                  "छंद", "ढाल", "ढाळ", "रास", "कलश", "स्तोत्र", "गहूंली", "भास", "चोवीसी", "बावनी"]
                                # a heading line containing one of these starts a new Kruti
-duplicate_threshold: 88        # same missing Kruti in two books = one row (match %)
+duplicate_threshold: 88        # same Kruti in two books/places = one Kruti ID (match %)
