@@ -23,6 +23,7 @@ def run_selftest(out_path, sample_png=None):
             report["sample_text"] = text.strip()
             report["ok"] = "जिनवर" in text
     except Exception:  # noqa: BLE001
+        report["ok"] = False          # any failure, e.g. Tesseract unable to read the image
         report["error"] = traceback.format_exc()
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
