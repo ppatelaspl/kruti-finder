@@ -269,7 +269,8 @@ def run(excel, inputs, out_dir, cfg, on_progress=None, log=print, ctl=None) -> R
         emit(True)
         book = Book.from_pages(pdf.name, pages)      # the file name is what the Excel shows
         page_script = {p.page: script_of(p.text) for p in pages}
-        found = find_krutis(book, {p.page: p.confidence for p in pages}, cfg)
+        found = find_krutis(book, {p.page: p.confidence for p in pages}, cfg,
+                            [x["name"] for x in krutis])
         for k in found:
             k.script = _script_for(k, page_script)
         index = BookIndex(book.key)
