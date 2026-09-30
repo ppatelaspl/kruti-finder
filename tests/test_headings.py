@@ -465,3 +465,22 @@ def test_letter_serial_and_raga_line_start_a_kruti():
     ks = _krutis(text)
     assert len(ks) == 3
     assert ks[1].aadi.startswith("पामी पुण्य संयोग") and ks[2].aadi.startswith("वीर जिनेश्वर वंदीए")
+
+
+# Sanskrit / old-text markers (real OCR lines from the samples)
+def test_atha_opens_and_iti_closes_a_kruti():
+    text = ("नमिऊण पणय सुरगण चूडामणि किरण रंजियं मुणिणो ॥1॥ चलण जुयलं महाभय पणासणं संथवं वोच्छं ॥2॥\n"
+            "इति श्रीलघुअजितशांतिस्तवनं द्वितीयं स्मरणं ॥\n"
+            "॥ अथ गुण विषे दोहा ॥\nगुण विना नर शोभे नहि, जिम फूल विना वन वेल ॥1॥ गुणीजन संगत कीजीए, टाळे भवनो खेल ॥2॥")
+    ks = _krutis(text)
+    assert [k.title for k in ks][1:] == ["गुण विषे दोहा"], [k.title for k in ks]
+    assert "इति" not in ks[0].ant and "इति" not in ks[1].aadi
+    assert ks[1].aadi.startswith("गुण विना नर शोभे नहि")
+
+
+def test_bracketed_number_alone_on_a_line():
+    # S027836: "। [2]" between two chaityavandans
+    text = ("अढाइधर आराधीएं, आगम वाणी विनीत...1...\nसंघ सकल शुभ रीत, पामो भवनो पार...2...\n"
+            "। [2]\nप्रणमुं श्री देवाधिदेव, जिनवर महावीर...1...\nशासन नायक जग जयो, वरते जय जयकार...2...")
+    ks = _krutis(text)
+    assert len(ks) == 2 and ks[1].aadi.startswith("प्रणमुं श्री देवाधिदेव")

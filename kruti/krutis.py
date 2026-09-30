@@ -111,10 +111,14 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
     (start, end, title) in book offsets; end is just past the heading's punctuation."""
     starts = [0] + [m.end() for m in _MARKER.finditer(text)] + \
              [i + 1 for i, c in enumerate(text) if c == "\n"]
+    colophon = None          # "इति … स्तवनं समाप्तम् ॥" closes a Kruti: the next one follows
     for pos in sorted(set(starts)):
         if pos == 0 or text[pos - 1] == "\n":
             eol = text.find("\n", pos)
             line = text[pos:len(text) if eol < 0 else eol]
+            if colophon is None and re.match(r"[\s।॥|]*इति\s", line):
+                colophon = (base + pos, base + pos + len(line))
+                continue
             # "(च)", "(क)": a letter serial alone on its line; "(राग - …)": a tune line.
             # Both open a new Kruti even when no title is printed.
             if re.fullmatch(r"\s*\(\s*[^\s()\d]{1,2}\s*\)\s*", line) or \
@@ -134,20 +138,24 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
         rest = text[m.start(2) + len(m.group(2)):line_end]
         bracketed = bool(serial) and not rest.strip() or bool(_SERIAL_REST.fullmatch(rest))
         phrase = phrase.strip(_HEAD_TRIM)
+        atha = re.match(r"अथ\s+(.{3,})", phrase)   # "॥ अथ गुण विषे दोहा ॥": a text begins
+        if atha:
+            phrase = atha.group(1).strip(_HEAD_TRIM)
         # a restart only vouches for a phrase closed by heading punctuation, not a bare line
         # "294. वैराग्यनी साय" / "(१) अभिनंदन जिन सवत.": a short phrase after the book's
         # serial number, alone on its line, is a heading even when OCR garbled its type word
         at_line_start = pos == 0 or text[pos - 1] == "\n"
         numbered = (bool(m.group(1)) and len(phrase.split()) <= 6 and m.group(3) in ".:।\n"
                     and (at_line_start or not m.group(1).strip()[-1:].isdigit()))
-        vouched = bracketed or numbered or (restart and m.group(3) in ".।")
+        vouched = bracketed or numbered or bool(atha) or (restart and m.group(3) in ".।")
         core = re.sub(r"\s*\([^)]*\)?\s*$", "", phrase)   # "…सज्झाय (ढाळ-2)": note on parts
         if _is_title(core or phrase, title_keys, name_keys, name_score, vouched):
             end = line_end if bracketed else m.end()
             while end < len(text) and text[end] in " .:-।":   # "लावणी. ।"
                 end += 1
-            return base + pos + (len(m.group(0)) - len(m.group(0).lstrip())), base + end, phrase
-    return None
+            start = base + pos + (len(m.group(0)) - len(m.group(0).lstrip()))
+            return (colophon[0] if colophon else start), base + end, phrase
+    return (colophon[0], colophon[1], "") if colophon else None
 
 
 _PART_LINE = 80      # "ढाल तेरहवीं - नारायणकी देशी …": a part heading may carry its tune
@@ -398,6 +406,8 @@ def find_krutis(book, page_conf: dict, cfg, names=()) -> list:
         body = opening + book.light[first[2]:block_end]      # the Kruti's text after its title
         body = _without_part_headings(body, section_keys)
         sents = _sentences(body, raw=True)
+        if not sents:
+            continue                         # no text of its own (a colophon between marks)
         aadi_full = _vakya(sents[0], True) if sents else ""
         ant_full = _vakya(sents[-1], False) if sents else ""
         aadi, ant = _short(aadi_full), _short(ant_full)
