@@ -23,7 +23,6 @@ class Gap:
     start_page: int
     end_page: int
     verses: int
-    author_signature: str
     title: str
     aadi: str
     ant: str
@@ -84,11 +83,6 @@ def _split_title(opening: str):
     return _clean(" ".join(title)), _clean(" ".join(lines))
 
 
-def _has_signature(text: str, keywords: list) -> bool:
-    k = key_only(text)
-    return any(fuzz.partial_ratio(key_only(w), k) >= 85 for w in keywords if w.strip())
-
-
 def find_gaps(book, covered_spans: list, page_conf: dict, cfg) -> list:
     gaps, prev_end = [], 0
     title_keys = [key_only(t) for t in cfg.get("title_keywords", []) if key_only(t)]
@@ -114,9 +108,7 @@ def find_gaps(book, covered_spans: list, page_conf: dict, cfg) -> list:
         sp, ep = book.page_of_light(block_start), book.page_of_light(block_end - 1)
         confs = [page_conf.get(p, 100) for p in range(sp, ep + 1)]
         low = min(confs) < cfg["low_ocr_confidence"] if confs else False
-        gaps.append(Gap(book.name, sp, ep, last[0],
-                        "Yes" if _has_signature(ant, cfg["author_keywords"]) else "No",
-                        title, aadi, ant, "Low - check scan" if low else "OK",
+        gaps.append(Gap(book.name, sp, ep, last[0], title, aadi, ant, "Low - check scan" if low else "OK",
                         (block_start, block_end)))
     return gaps
 

@@ -7,9 +7,10 @@ from pathlib import Path
 from PySide6.QtCore import QSettings, QStandardPaths, Qt, QThread, QUrl
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
-    QCheckBox, QFileDialog, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
+    QFileDialog, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
     QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit,
-    QProgressBar, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
+    QFrame, QProgressBar, QPushButton, QScrollArea, QSpinBox, QTabWidget, QVBoxLayout,
+    QWidget)
 
 from kruti.config import merged
 from kruti.ocr_setup import configure_ocr, resource_dir
@@ -36,6 +37,12 @@ def data_dir() -> Path:
     d = Path(QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation))
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def _scrollable(page: QWidget) -> QScrollArea:
+    area = QScrollArea(widgetResizable=True, frameShape=QFrame.NoFrame)
+    area.setWidget(page)
+    return area
 
 
 class BooksList(QListWidget):
@@ -86,11 +93,13 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._header())
         tabs = QTabWidget()
-        tabs.addTab(self._find_tab(), "Find Kruti")
-        tabs.addTab(self._merge_tab(), "Merge Reviewed File")
+        tabs.addTab(_scrollable(self._find_tab()), "Find Kruti")
+        tabs.addTab(_scrollable(self._merge_tab()), "Merge Reviewed File")
         layout.addWidget(tabs)
         self.setCentralWidget(root)
-        self.resize(980, 860)
+        # fit smaller laptop screens (e.g. 1366x768); the tabs scroll when space runs out
+        avail = self.screen().availableGeometry()
+        self.resize(min(980, avail.width() - 40), min(860, avail.height() - 60))
         self._load_settings()
         self._check_ocr()
 
@@ -198,16 +207,10 @@ class MainWindow(QMainWindow):
         form = QFormLayout(inner)
         self.workers_spin = QSpinBox(minimum=1, maximum=max(1, os.cpu_count() or 1))
         self.threshold_spin = QSpinBox(minimum=70, maximum=98)
-        self.author_edit = QLineEdit()
-        self.author_only = QCheckBox("List only new Kruti carrying the author's signature")
-        self.force_ocr = QCheckBox("OCR every page (ignore PDF text layers)")
         clear = QPushButton("Clear saved OCR results")
         clear.clicked.connect(self._clear_cache)
         form.addRow("Parallel OCR jobs", self.workers_spin)
         form.addRow("Match threshold (%)", self.threshold_spin)
-        form.addRow("Author signature(s)", self.author_edit)
-        form.addRow("", self.author_only)
-        form.addRow("", self.force_ocr)
         form.addRow("", clear)
         lay = QVBoxLayout(box)
         lay.addWidget(inner)
@@ -281,9 +284,6 @@ class MainWindow(QMainWindow):
         self.books.add_paths([p for p in saved if p and Path(p).exists()])
         self.workers_spin.setValue(int(s.value("workers", d["ocr_workers"])))
         self.threshold_spin.setValue(int(s.value("threshold", d["found_threshold"])))
-        self.author_edit.setText(s.value("authors", ", ".join(d["author_keywords"])))
-        self.author_only.setChecked(s.value("author_only", "false") == "true")
-        self.force_ocr.setChecked(s.value("force_ocr", "false") == "true")
 
     def _save_settings(self):
         s = self.settings
@@ -292,18 +292,11 @@ class MainWindow(QMainWindow):
         s.setValue("books", self.books.paths())
         s.setValue("workers", self.workers_spin.value())
         s.setValue("threshold", self.threshold_spin.value())
-        s.setValue("authors", self.author_edit.text())
-        s.setValue("author_only", "true" if self.author_only.isChecked() else "false")
-        s.setValue("force_ocr", "true" if self.force_ocr.isChecked() else "false")
 
     def _config(self):
-        authors = [a.strip() for a in self.author_edit.text().replace("،", ",").split(",") if a.strip()]
         return merged({
             "ocr_workers": self.workers_spin.value(),
             "found_threshold": self.threshold_spin.value(),
-            "author_keywords": authors,
-            "gaps_author_only": self.author_only.isChecked(),
-            "force_ocr": self.force_ocr.isChecked(),
             "cache_dir": str(data_dir() / "ocr_cache"),
         })
 

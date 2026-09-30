@@ -31,8 +31,6 @@ max_kruti_pages: 40            # end must be within this many pages of the start
 # ---------------- Gap detection ----------------
 gap_min_verses: 2              # ignore numbered blocks shorter than this
 gap_max_verse_chars: 600       # how far back from verse 1 to take the opening text
-author_keywords: ["क्षमाकल्याण", "क्षमा कल्याण"]   # signature (chhap) to flag in gaps
-gaps_author_only: false        # true = report only gaps carrying the signature
 title_keywords: ["स्तवन", "सज्झाय", "स्तुति", "थोय", "चैत्यवंदन", "गीत", "पद", "लावणी",
                  "छंद", "ढाल", "ढाळ", "रास", "कलश", "स्तोत्र", "गहूंली", "भास", "चोवीसी", "बावनी"]
                                # a heading line containing one of these starts a new Kruti

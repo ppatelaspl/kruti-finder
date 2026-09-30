@@ -27,8 +27,6 @@ DEFAULTS = {
     # New-Kruti detection
     "gap_min_verses": 2,
     "gap_max_verse_chars": 600,
-    "author_keywords": ["क्षमाकल्याण", "क्षमा कल्याण"],
-    "gaps_author_only": False,
     "title_keywords": ["स्तवन", "सज्झाय", "स्तुति", "थोय", "चैत्यवंदन", "गीत", "पद", "लावणी",
                        "छंद", "ढाल", "ढाळ", "रास", "कलश", "स्तोत्र", "गहूंली", "भास",
                        "चोवीसी", "बावनी"],

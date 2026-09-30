@@ -150,7 +150,7 @@ def _write_dashboard(ws, books_count, missing_count):
 # ------------------------------------------------------------------ Kruti in books
 NEW_SHEET, KNOWN_SHEET = "New Kruti", "Excel Kruti - Books Found"
 NEW_EXTRA = ["Temp ID", "Book", "Start Page", "End Page", "No. of Verses", "No. of Books",
-             "Also Found In", "Author Signature", "OCR Quality", "Approve (Y/N)",
+             "Also Found In", "OCR Quality", "Approve (Y/N)",
              "Reviewer Remarks"]
 KNOWN_EXTRA = ["No. of Books", "Book", "Start Page", "End Page", "Status",
                "Also Found In", "Note", "Reviewer Remarks"]
@@ -177,19 +177,19 @@ def write_missing(path, gaps, krutis, results, source_columns):
     for g in gaps:
         also = "; ".join(f"{b} ({_page_range(s, e)})" for b, s, e in g.also_in)
         rows.append(["", g.title, g.aadi, g.ant, g.temp_id, g.book, g.start_page, g.end_page,
-                     g.verses, 1 + len(g.also_in), also, g.author_signature, g.ocr_quality,
+                     g.verses, 1 + len(g.also_in), also, g.ocr_quality,
                      "", ""])
     _table(ws, cols + NEW_EXTRA, rows,
-           [11, 28, 55, 55, 11, 30, 10, 10, 9, 9, 40, 11, 14, 11, 30],
-           wrap_cols=(2, 3, 4, n + 7, n + 11), input_cols=(1, n + 10, n + 11))
+           [11, 28, 55, 55, 11, 30, 10, 10, 9, 9, 40, 14, 11, 30],
+           wrap_cols=(2, 3, 4, n + 7, n + 10), input_cols=(1, n + 9, n + 10))
     if rows:
         dv = DataValidation(type="list", formula1='"Y,N"', allow_blank=True)
         ws.add_data_validation(dv)
-        letter = ws.cell(1, n + 10).column_letter
+        letter = ws.cell(1, n + 9).column_letter
         dv.add(f"{letter}2:{letter}{ws.max_row}")
     for r in ws.iter_rows(min_row=2):
-        if r[n + 8].value != "OK":
-            r[n + 8].font = Font(name=FONT, bold=True, color=RED)
+        if r[n + 7].value != "OK":
+            r[n + 7].font = Font(name=FONT, bold=True, color=RED)
     ws["A1"].comment = Comment("Grey cells are for the team: assign the real Kruti No., set "
                                "Approve = Y, correct Aadi/Ant text if OCR garbled it. Then run "
                                "kruti_finder.py merge.", "Kruti Finder")
@@ -225,7 +225,6 @@ def write_missing(path, gaps, krutis, results, source_columns):
     notes = [
         f"'{NEW_SHEET}' = Kruti found in the books that are NOT in the submitted Excel. "
         "One row per Kruti; copies in other books/editions are listed in 'Also Found In'.",
-        "Rows with Author Signature = Yes are sorted first.",
         "Title comes from the heading above verse 1 - verify it; it may include raga/dhal lines.",
         "OCR Quality 'Low - check scan': open the page and correct the Aadi/Ant text before approving.",
         f"'{KNOWN_SHEET}' = Kruti already in the Excel, with every book and page range where "

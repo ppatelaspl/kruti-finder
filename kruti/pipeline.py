@@ -228,9 +228,7 @@ def run(excel, inputs, out_dir, cfg, on_progress=None, log=print, ctl=None) -> R
 
     prog.stage = "Writing Excel files"
     emit(True)
-    if cfg.get("gaps_author_only"):
-        all_gaps = [g for g in all_gaps if g.author_signature == "Yes"]
-    all_gaps.sort(key=lambda g: (g.author_signature != "Yes", g.book, g.start_page))
+    all_gaps.sort(key=lambda g: (g.book, g.start_page))
     missing = group_duplicates(all_gaps, cfg["duplicate_threshold"])
 
     report_path = os.path.join(out_dir, "Kruti_Report.xlsx")

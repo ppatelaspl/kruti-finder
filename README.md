@@ -31,8 +31,7 @@ The command-line version described below uses the same engine and gives identica
    - **Title:** the heading lines above verse 1;
    - **Aadi Vakya:** the first verse;
    - **Ant Vakya:** the last verse;
-   - **pages;**
-   - **author chhap:** whether the last verse carries the author's signature (default क्षमाकल्याण).
+   - **pages.**
 
    The same Kruti found in several books or editions, even one in Gujarati script and one in Devanagari, becomes **one row**, with the other copies listed in "Also Found In".
 
@@ -68,7 +67,7 @@ Both sheets start with the same four columns as the team's Excel (कृति �
 
 | Sheet | Use |
 |---|---|
-| New Kruti | Kruti not in the Excel. After the four columns come Temp ID, Book, Start/End Page, No. of Verses, No. of Books, Also Found In (other books with pages), Author Signature, OCR Quality, Approve (Y/N) and Reviewer Remarks. Grey columns are for the team. |
+| New Kruti | Kruti not in the Excel. After the four columns come Temp ID, Book, Start/End Page, No. of Verses, No. of Books, Also Found In (other books with pages), OCR Quality, Approve (Y/N) and Reviewer Remarks. Grey columns are for the team. |
 | Excel Kruti - Books Found | Kruti already in the Excel, with No. of Books, first Book and pages, and every other book in "Also Found In". Reviewer Remarks lets the team note which copies are new for them. |
 | How to Review | Short instructions for reviewers |
 
@@ -84,7 +83,7 @@ Both sheets start with the same four columns as the team's Excel (कृति �
 
 ## Team review loop
 
-1. Reviewers work through the **New Kruti** sheet of `Missing_Kruti.xlsx`, starting with rows where Author Signature = Yes.
+1. Reviewers work through the **New Kruti** sheet of `Missing_Kruti.xlsx`.
    - Assign the real Kruti No. (left blank, the Temp ID is used).
    - Check the title.
    - Correct Aadi/Ant text on rows marked "OCR Quality: Low".
@@ -101,7 +100,7 @@ Both sheets start with the same four columns as the team's Excel (कृति �
 ## Tuning (`config.yaml`)
 
 - **Too many Partially Found on good pages:** lower `found_threshold` to 80. Too many wrong Found: raise it to 90.
-- **Missing list too long:** set `gaps_author_only: true` to keep only the author's own works, or raise `gap_min_verses`.
+- **Missing list too long:** raise `gap_min_verses`.
 - **Kruti wrongly split or fused:** add the book's Kruti-type words to `title_keywords`.
 - **Machine slows down during OCR:** keep `ocr_workers: 2` on 8 GB RAM machines. Each worker uses about 1 GB. Use 4–6 on a 16–32 GB desktop.
 - **Poor OCR confidence across many books:** set `ocr_engine: google_vision` (see below).
@@ -119,5 +118,5 @@ Both sheets start with the same four columns as the team's Excel (कृति �
 - **Splitting relies on verse numbers and headings.** Kruti printed without verse numbers or a type-word heading (e.g. a single unnumbered doha) are not detected as new Kruti.
 - **Titles are a first draft.** They may include a raga/dhal line or miss a title placed below verse 1, and always need a reviewer's check.
 - **One book = one PDF.** If a book is split across several PDFs, a Kruti crossing the split will show as Partially Found in both parts.
-- **Missing Kruti depend on the Excel.** If a book contains works of several authors, all of them are listed as missing. That is expected; use the Author Signature column or `gaps_author_only` to focus.
+- **Missing Kruti depend on the Excel.** Every Kruti in the books, by any author, is compared with the Excel entries; whatever is not in the Excel is listed as missing.
 - **Excel entries with typos** may show as Partially Found. The tool does not list their block as missing, so the Kruti is never entered twice.
