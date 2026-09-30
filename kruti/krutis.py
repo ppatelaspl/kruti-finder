@@ -252,8 +252,13 @@ def _verse_count(marks) -> int:
     return total
 
 
+_LETTER = re.compile(r"[\u0900-\u0963\u0970-\u097F\u0A80-\u0AE5\u0AF0-\u0AFFA-Za-z]")
+
+
 def _letters(text: str) -> int:
-    return len(re.sub(r"[\s\d।॥.,;:|()\[\]!?%^>“”\"'-]", "", text))
+    """Devanagari/Gujarati letters and signs (and Latin); not digits, dandas or symbols -
+    a decorative rule "~-~--~---" has none."""
+    return len(_LETTER.findall(text))
 
 
 # A sentence ends at a danda, ! ?, an ellipsis, or a full stop closing a line.
@@ -267,6 +272,7 @@ _VAKYA_TRIM = _HEAD_TRIM + "0123456789,;()[]"
 def _sentences(text: str, raw: bool = False) -> list:
     """The Kruti's sentences, dropping refrain cues and verse numbers (under 8 letters).
     raw=True keeps each sentence's line breaks."""
+    text = "\n".join(ln for ln in text.split("\n") if _letters(ln))   # rules, ornaments
     out = []
     for piece in _SENTENCE_END.split(text):
         clean = _clean(piece).strip(_VAKYA_TRIM)
@@ -325,7 +331,7 @@ def _split_title(opening: str, title_keys=(), name_keys=(), name_score=85):
             break
         title.append(lines.pop(0))
     title = re.sub(r"^\d{1,4}\s*[.)]\s*", "", _clean(" ".join(title)))   # "172. …"
-    return title.strip(_HEAD_TRIM), _clean(" ".join(lines))
+    return title.strip(_HEAD_TRIM), "\n".join(lines)     # keep lines: sentences need them
 
 
 def find_krutis(book, page_conf: dict, cfg, names=()) -> list:

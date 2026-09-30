@@ -430,3 +430,10 @@ def test_ocr_variants_of_dhal_and_doha_are_parts():
     ks = _krutis(text)
     assert [k.title for k in ks] == ["सीमंधर स्वामीनुं स्तवन"], [k.title for k in ks]
     assert "हाल बेहाल थयो जीवडो" in ks[0].ant            # a verse starting with "हाल" stays a verse
+
+
+def test_decorative_rule_is_not_a_sentence():
+    text = ("श्री पाक्षिक खामणा.\n~-~--~---~-~~~~---~~~~-----~-~~-~~~\n"
+            "इच्छामि खमासमणो वंदिउं जावणिज्जाए निसीहिआए ॥1॥ पियं च मे जं भे हट्ठाणं तुट्ठाणं ॥2॥")
+    k = _krutis(text)[0]
+    assert k.aadi.startswith("इच्छामि खमासमणो")
