@@ -217,6 +217,7 @@ def run(excel, inputs, out_dir, cfg, on_progress=None, log=print, ctl=None) -> R
     for x in krutis:
         x["script"] = script_of(x["aadi"] + x["ant"])
     krutis_by_id = {x["id"]: x for x in krutis}
+    names = [x["name"] for x in krutis]
     log(f"{len(krutis)} Kruti read from {Path(excel).name}")
 
     pdfs = collect_pdfs(inputs)
@@ -241,6 +242,23 @@ def run(excel, inputs, out_dir, cfg, on_progress=None, log=print, ctl=None) -> R
         prog.book_pages_done, prog.book_pages_total = 0, npages
         emit(True)
         t_last = [time.time()]
+        read_so_far, last_count, count_cost = [], [time.time()], [0.0]
+
+        def on_text(pt, before=len(all_krutis)):
+            """Keep "Kruti found" moving inside a long book: every few seconds, split the
+            pages read so far. The exact count follows when the book is done."""
+            read_so_far.append(pt)
+            now = time.time()
+            if now - last_count[0] < max(cfg["live_count_seconds"], 6 * count_cost[0]):
+                return                      # recounting a long book must not slow its OCR
+            try:
+                partial = Book.from_pages(pdf.name, sorted(read_so_far, key=lambda p: p.page))
+                prog.kruti_found = before + len(find_krutis(partial, {}, cfg, names))
+                emit(True)
+            except Exception:  # noqa: BLE001 - a live estimate must never stop the run
+                pass
+            last_count[0] = time.time()
+            count_cost[0] = last_count[0] - now
 
         def on_page(done, total, source, base=pages_before):
             now = time.time()
@@ -255,7 +273,8 @@ def run(excel, inputs, out_dir, cfg, on_progress=None, log=print, ctl=None) -> R
             emit()
 
         try:
-            pages = extract_book(str(pdf), cfg, on_page=on_page, checkpoint=ctl.checkpoint)
+            pages = extract_book(str(pdf), cfg, on_page=on_page, checkpoint=ctl.checkpoint,
+                                 on_text=on_text)
         except Cancelled:
             raise
         except Exception as e:  # noqa: BLE001 - a broken PDF must not stop a 200-book run
@@ -271,8 +290,7 @@ def run(excel, inputs, out_dir, cfg, on_progress=None, log=print, ctl=None) -> R
         emit(True)
         book = Book.from_pages(pdf.name, pages)      # the file name is what the Excel shows
         page_script = {p.page: script_of(p.text) for p in pages}
-        found = find_krutis(book, {p.page: p.confidence for p in pages}, cfg,
-                            [x["name"] for x in krutis])
+        found = find_krutis(book, {p.page: p.confidence for p in pages}, cfg, names)
         for k in found:
             k.script = _script_for(k, page_script)
         index = BookIndex(book.key)

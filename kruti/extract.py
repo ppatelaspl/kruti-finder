@@ -150,11 +150,12 @@ def page_count(pdf_path: str) -> int:
         return 0
 
 
-def extract_book(pdf_path: str, cfg, on_page=None, checkpoint=None) -> list:
+def extract_book(pdf_path: str, cfg, on_page=None, checkpoint=None, on_text=None) -> list:
     """Return PageText for every page of the book.
 
-    on_page(done, total, source) is called after each page; checkpoint() is called between
-    pages and may block (pause) or raise (cancel)."""
+    on_page(done, total, source) is called after each page; on_text(page_text) hands over
+    each page's text as soon as it is read (cached pages first); checkpoint() is called
+    between pages and may block (pause) or raise (cancel)."""
     checkpoint = checkpoint or (lambda: None)
     cache_file = _cache_path(pdf_path, cfg)
     workers = max(1, int(cfg["ocr_workers"]))
@@ -164,6 +165,9 @@ def extract_book(pdf_path: str, cfg, on_page=None, checkpoint=None) -> list:
     with pymupdf.open(pdf_path) as doc:
         total = doc.page_count
         done = _read_cache(cache_file, total)
+        if on_text:
+            for p in sorted(done):
+                on_text(done[p])
         if on_page and done:
             on_page(len(done), total, "cache")
         todo = [i for i in range(total) if i + 1 not in done]
@@ -178,6 +182,8 @@ def extract_book(pdf_path: str, cfg, on_page=None, checkpoint=None) -> list:
                     done[pt.page] = pt
                     cache.write(json.dumps(asdict(pt), ensure_ascii=False) + "\n")
                     cache.flush()
+                    if on_text:
+                        on_text(pt)
                     if on_page:
                         on_page(len(done), total, pt.source)
 
