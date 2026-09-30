@@ -12,10 +12,36 @@ from rapidfuzz import fuzz, process
 
 from .normalize import key_only
 
-# ॥12॥ ; OCR often garbles the number (॥[॥, ॥l॥) - those are inferred from the sequence
-# Some books end verses with an ellipsis at the line end instead: "...1...", "...2", "..."
-_VERSE_MARK = re.compile(r"[।॥]\s*([\dIl|\[\]()!]{1,3}|\s?)\s*[।॥]"
-                         r"|\.{2,}\s*([^\s.]{0,2})\s*\.*[ \t]*(?=\n|$)")
+# How a verse ends differs from book to book. OCR often garbles the number (॥[॥, ...र...);
+# a garbled one is inferred from the sequence.
+_STYLES = {
+    "danda": r"[।॥]\s*([\dIl|\[\]()!]{1,3}|\s?)\s*[।॥]",          # ॥12॥  । 3 ।
+    "dots": r"\.{2,}\s*([^\s.]{0,2})\s*\.*[ \t]*(?=\n|$)",        # ...1...  ...2  ...
+    "num_stop": r"(?<=[\s,;])(\d{1,3})\.(?=\s)",                 # श्रीठ 15. एकवरस
+    "line_num": r"(?<=\S[ \t])(\d{1,3})[ \t]*(?=\n|$)",          # रूडा0 धन्य0 11⏎
+}
+_ALWAYS = ("danda", "dots")
+
+
+def _sequential(nums) -> float:
+    """Share of numbers that continue the previous one (or restart at 1)."""
+    hits = sum(1 for a, b in zip(nums, nums[1:]) if b == a + 1 or b == 1)
+    return hits / max(1, len(nums) - 1)
+
+
+def verse_pattern(light: str, pages: int = 1):
+    """The verse-end styles this book uses. The bare-number styles would also catch stray
+    numbers, so they are used only where the book numbers verses that way throughout:
+    often, and mostly in sequence."""
+    use = list(_ALWAYS)
+    for name in ("num_stop", "line_num"):
+        nums = [int(m.group(1)) for m in re.finditer(_STYLES[name], light)]
+        if len(nums) >= max(8, pages) and _sequential(nums) >= 0.4:
+            use.append(name)
+    return re.compile("|".join(_STYLES[n] for n in use))
+
+
+_VERSE_MARK = verse_pattern("")
 _VERSE_PUNCT = re.compile(r"[।॥,;]")
 
 
@@ -71,6 +97,9 @@ def _is_title(phrase: str, title_keys: list, name_keys: list, name_score: float,
         return False
     if restart or any(_ends_with_type(k, t) for t in title_keys):
         return True
+    words = phrase.split()                   # "पद बारमुं", "स्तवन 5": type word first
+    if len(words) <= 4 and key_only(words[0]) in title_keys:
+        return True
     return bool(name_keys) and process.extractOne(
         k, name_keys, scorer=fuzz.ratio, score_cutoff=name_score) is not None
 
@@ -105,7 +134,8 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
     return None
 
 
-def _verse_blocks(light: str, title_keys: list, name_keys: list, name_score: float):
+def _verse_blocks(light: str, title_keys: list, name_keys: list, name_score: float,
+                  pattern=_VERSE_MARK):
     """Split the book at headings first, then at verse numbers restarting at 1.
     Each block: {"marks": [(n, start, end)], "heading": (start, end, title) or None}."""
     blocks, current, heading, prev_end = [], [], None, 0
@@ -116,8 +146,8 @@ def _verse_blocks(light: str, title_keys: list, name_keys: list, name_score: flo
             blocks.append({"marks": current, "heading": heading})
         current, heading = [], None
 
-    for m in _VERSE_MARK.finditer(light):
-        raw = (m.group(1) if m.group(1) is not None else m.group(2) or "").strip()
+    for m in pattern.finditer(light):
+        raw = next((g for g in m.groups() if g is not None), "").strip()
         if raw.isdigit():
             n = int(raw)
         elif current:
@@ -160,14 +190,31 @@ _SENTENCE_END = re.compile(r"[।॥!?]+|\.{2,}|\.(?=[ \t]*(?:\n|$))")
 _LONG_SENTENCE = 160
 
 
-def _sentences(text: str) -> list:
-    """The Kruti's sentences, dropping refrain cues and verse numbers (under 8 letters)."""
+_VAKYA_TRIM = _HEAD_TRIM + "0123456789,;()[]"
+
+
+def _sentences(text: str, raw: bool = False) -> list:
+    """The Kruti's sentences, dropping refrain cues and verse numbers (under 8 letters).
+    raw=True keeps each sentence's line breaks."""
     out = []
     for piece in _SENTENCE_END.split(text):
-        piece = _clean(piece).strip(_HEAD_TRIM + "0123456789,;()[]")
-        if _letters(piece) >= 8:
-            out.append(piece)
+        clean = _clean(piece).strip(_VAKYA_TRIM)
+        if _letters(clean) >= 8:
+            out.append(piece if raw else clean)
     return out
+
+
+def _vakya(sentence: str, first: bool) -> str:
+    """Aadi/Ant Vakya from the first/last sentence. Many books punctuate only at the verse
+    end, so a "sentence" can be a whole multi-line verse; then its first/last line is used."""
+    clean = _clean(sentence).strip(_VAKYA_TRIM)
+    if len(clean) <= _LONG_SENTENCE:
+        return clean
+    lines = [_clean(ln).strip(_VAKYA_TRIM) for ln in sentence.split("\n")]
+    lines = [ln for ln in lines if _letters(ln) >= 8]
+    if len(lines) > 1:
+        return lines[0] if first else lines[-1]
+    return clean
 
 
 def _short(sentence: str) -> str:
@@ -176,10 +223,20 @@ def _short(sentence: str) -> str:
     return sentence[:_LONG_SENTENCE].rsplit(" ", 1)[0] + " …"
 
 
+def _not_a_kruti(body, sents, marks, heading, light) -> bool:
+    """Book text that is not a Kruti and is left out: index/contents lists, and prose
+    (preface, explanations) - no heading, under 2 numbered verses, long sentences."""
+    if _looks_like_list(body):
+        return True
+    numbered = sum(1 for _n, s, e in marks if re.search(r"\d", light[s:e]))
+    long_sentences = bool(sents) and sum(map(len, sents)) / len(sents) > 120
+    return not heading and numbered < 2 and long_sentences
+
+
 def _looks_like_list(text: str) -> bool:
     """Index / contents / list pages: many page or serial numbers between few words."""
     numbers = re.findall(r"\b\d{1,4}\b", text)
-    return len(numbers) >= 6 and len(numbers) * 6 > _letters(text) / 4
+    return len(numbers) >= 6 and len(numbers) / max(1, _letters(text)) > 0.1
 
 
 def _split_title(opening: str):
@@ -196,7 +253,9 @@ def find_krutis(book, page_conf: dict, cfg, names=()) -> list:
     found, prev_end = [], 0
     title_keys = [key_only(t) for t in cfg.get("title_keywords", []) if key_only(t)]
     name_keys = [k for k in (key_only(n) for n in names if n) if len(k) >= 3]
-    for block in _verse_blocks(book.light, title_keys, name_keys, cfg["name_match_threshold"]):
+    pattern = verse_pattern(book.light, len(book.page_numbers))
+    for block in _verse_blocks(book.light, title_keys, name_keys, cfg["name_match_threshold"],
+                               pattern):
         marks, heading = block["marks"], block["heading"]
         first, last = marks[0], marks[-1]
         if heading:                         # a detected heading fixes where the Kruti starts
@@ -213,19 +272,20 @@ def find_krutis(book, page_conf: dict, cfg, names=()) -> list:
             continue
 
         body = opening + book.light[first[2]:block_end]      # the Kruti's text after its title
-        sents = _sentences(body)
-        aadi = _short(sents[0]) if sents else ""
-        ant = _short(sents[-1]) if sents else ""
+        sents = _sentences(body, raw=True)
+        aadi_full = _vakya(sents[0], True) if sents else ""
+        ant_full = _vakya(sents[-1], False) if sents else ""
+        aadi, ant = _short(aadi_full), _short(ant_full)
         verses = _verse_count(marks)
         sp, ep = book.page_of_light(block_start), book.page_of_light(block_end - 1)
         confs = [page_conf.get(p, 100) for p in range(sp, ep + 1)]
         checks = []
         if not title:
             checks.append("No heading found - check where it starts")
-        if not sents or any(len(x) > _LONG_SENTENCE for x in (sents[0], sents[-1])):
+        if not sents or max(len(aadi_full), len(ant_full)) > _LONG_SENTENCE:
             checks.append("Aadi/Ant is not one clear sentence")
-        if _looks_like_list(body):
-            checks.append("Looks like an index/list, not a Kruti")
+        if _not_a_kruti(body, sents, marks, heading, book.light):
+            continue                         # index/contents or preface/explanation prose
         if ep - sp + 1 > cfg["max_kruti_pages_check"]:
             checks.append(f"Spans {ep - sp + 1} pages - may hold several Kruti")
         if confs and min(confs) < cfg["low_ocr_confidence"]:

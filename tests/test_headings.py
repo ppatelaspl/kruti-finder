@@ -212,11 +212,19 @@ def test_book_page_numbers_from_headers():
     assert (k.start_page, k.book_start) == (13, 7)
 
 
-def test_index_page_is_flagged():
+def test_index_page_is_left_out():
     index = ("अनुक्रमणिका\nश्री ऋषभदेव 12 ॥1॥ श्री अजितनाथ 14 ॥2॥ श्री संभवनाथ 16 ॥3॥ श्री अभिनंदन 18 ॥4॥ "
              "श्री सुमतिनाथ 20 ॥5॥ श्री पद्मप्रभ 22 ॥6॥ श्री सुपार्श्व 24 ॥7॥")
-    ks = _krutis(index)
-    assert ks and "Looks like an index/list, not a Kruti" in ks[0].checks
+    assert _krutis(index) == []
+
+
+def test_preface_prose_is_left_out():
+    preface = ("विक्रम की 16वीं शताब्दी के बाद का समय भक्ति योग का प्रेरक काल रहा है, इस कालखंड में हर धर्म "
+               "व क्षेत्र में विशिष्ट कवियों का आविर्भाव हुआ जिन्होंने प्रभु भक्ति के विविध आयामों पर "
+               "काव्य शक्ति को प्रकट करते हुए अपनी कलम को गति दी...\nउसी श्रृंखला के एक अनूठे हस्ताक्षर हैं "
+               "श्री क्षमाकल्याणजी महाराज, वे मूलतः कविचेता साधु हैं और उन्होंने अपने आराध्य को लक्ष्य "
+               "बनाकर अनेक रचनाएं कीं जो आज भी गाई जाती हैं...\n")
+    assert _krutis(preface) == []
 
 
 def test_heading_with_stray_danda_first_verse_and_garbled_running_header():
@@ -247,3 +255,55 @@ def test_rows_without_text_are_not_grouped_together():
     b = Kruti("b.pdf", 2, 2, 1, "y", "", "", [], (0, 1))
     assign_groups([a, b])
     assert a.group_no != b.group_no
+
+
+# Other books' layouts, from real OCR of the samples
+def test_type_word_first_heading():
+    # S002803 stavanavali: "पद अगीयारमु ॥", "पद बारमुं ॥ राग ..."
+    text = ("पद दशमुं ॥ श्री चिंतामणि प्रभु पूजा करतां, माया मुकत अब वामी ॥ 1 ॥ "
+            "लागी लगन प्रभु चरणनी, भव भय सघलो वामी ॥ 2 ॥\n"
+            "पद अगीयारमु॥ में तो तोरी आजही महीमा\nजाणी ॥ टेक ॥ कायकुं नव विच चरी जील नमता,\n"
+            "कायकुं बोत दुःख दानी ॥ मेतो0 ॥ 1॥ एसी शाखा\nमें बोत सुनी दे, जेन पुरान बिखानी ॥ मेतो0 ॥ 2 ॥\n"
+            "पद बारमुं ॥ राग विर्य ॥ शीयल नित पालो\nप्रानी, शीयल धरमको मूल रे ॥ सीचणळ ॥ टेक ॥\n"
+            "सीयत सती सीतायें पाद्यं, अग्नि कुंड जयो पानी रे\n॥ चीयलण्॥ 1 ॥ झीयल सती सुनझायें वाव्युं, चा\n"
+            "लणी स जर लीयो पानी रे ॥दीयलण्॥ 2 ॥")
+    titles = [k.title for k in _krutis(text)]
+    assert titles == ["पद दशमुं", "पद अगीयारमु", "पद बारमुं"]
+
+
+def test_line_end_verse_numbers_when_the_book_uses_them():
+    # B039544 prachin sazzaya: "...रूडा0 धन्य0 11" - the number closes the verse line
+    verses = ["त्राजवुं मंगावी मेघरथ रायजी, कापी कापी मूके छे मांस", "देव माया धारणु समी, ने आवे एकणु गश",
+              "भाई सुत राणी वळवळे, हाथ झाली कहे तेह", "एक पारेवा ने कारणे, शुं कापो छे देह",
+              "महाजन लोक वारे सहु, म करो एवडी वात", "मेघरथ कहे धर्म भलो, जीवदया सुज घात",
+              "त्राजवे बेठा मेघरथ राजवी, जे भावे ते खाजो", "जीवथी पारेवा अधिक गह्यो, धन्य पिता तुज माय",
+              "चढते परिणामे राजवी, सुर प्रगट्यो तिहां आय"]
+    lines = ["मेघरथ राजानी सज्झाय."]
+    for i, v in enumerate(verses, 1):
+        lines += [v + ",", f"रूडा0 धन्य0 {i}"]
+    ks = _krutis("\n".join(lines))
+    assert len(ks) == 1 and ks[0].title == "मेघरथ राजानी सज्झाय" and ks[0].verses == 9
+    assert ks[0].aadi.startswith("त्राजवुं मंगावी मेघरथ रायजी")
+
+
+def test_stray_line_end_numbers_do_not_split_a_normal_book():
+    # a ॥n॥ book with a few numbers at line ends (years, counts) keeps ॥n॥ verses only
+    text = PREVIOUS + "\nसंवत 1686\nमागशर मास 12\n"
+    assert [k.title for k in _krutis(text)] == ["शांतिनाथ स्तवन"]
+
+
+def test_long_verse_gives_its_first_and_last_line():
+    # verses punctuated only at the verse end: Aadi = first line, Ant = last line
+    text = ("आदिनाथ स्तवन.\n"
+            "प्रथम जिनेश्वर प्रणमीए, जास सुगंधी रे काय, कल्पवेली परे विस्तरी,\n"
+            "नाभिराया कुल मंडणो, मरुदेवी माता मल्हार, वंछित फल दातार जिणंदा,\n"
+            "भविजन कमल दिवाकरु, सेवक जन आधार, त्रिभुवन तारण देव दयाल,\n"
+            "केवल ज्ञान दिवाकर स्वामी, शिवसुख संपत्ति दाय ॥1॥\n"
+            "मोहन कहे प्रभु सेवतां, लहीए सुख अपार अनंत, भव भय भंजन देव,\n"
+            "सुरनर सेवे जेहने, पामे भवजल पार, जिनवर नमीए नित्य,\n"
+            "समकित दायक साहिबा, मुज मन मंदिर वास,\n"
+            "कीर्ति सदा जग विस्तरी, गावे मुनि गुणवंत ॥2॥")
+    k = _krutis(text)[0]
+    assert k.aadi == "प्रथम जिनेश्वर प्रणमीए, जास सुगंधी रे काय, कल्पवेली परे विस्तरी"
+    assert k.ant == "कीर्ति सदा जग विस्तरी, गावे मुनि गुणवंत"
+    assert not k.checks

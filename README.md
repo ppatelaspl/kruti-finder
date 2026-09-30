@@ -74,7 +74,13 @@ One sheet, **Kruti Found**, one row per Kruti found in a book:
 verse numbers between dandas (॥1॥, ।2।) or at a line end after dots (…1…, …2);
 headings ending in a Kruti-type word (…लावणी, …स्तवन), matching a name in the Excel,
 followed by verses restarting at 1, or followed by a bracketed serial (सुपार्श्वनाथ नु [7]).
-Running page headers and page numbers are removed first.
+Running page headers and page numbers are removed first. How verses end is detected
+per book: bare numbers ("15." or a number closing the line) are used only in books that number
+their verses that way throughout.
+
+**Text that is not a Kruti is left out:** index/contents pages (many page numbers between few
+words) and prose such as prefaces and explanations (no heading, fewer than two numbered verses,
+long sentences). Anything that may still be a Kruti stays in, with the reason in Check.
 
 ## Tuning (`config.yaml`)
 
