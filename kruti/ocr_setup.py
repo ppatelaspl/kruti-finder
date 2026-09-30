@@ -4,6 +4,7 @@ Installed app: both ship inside the app (Windows/Mac), or Tesseract comes from t
 package and the models ship inside the app (Linux .deb). From source: system Tesseract.
 """
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -33,6 +34,15 @@ def _bundled_tesseract() -> str | None:
     return str(exe) if exe and exe.exists() else None
 
 
+def _tesseract_major(cmd: str, kwargs: dict) -> int | None:
+    try:
+        out = subprocess.run([cmd, "--version"], **kwargs)
+        m = re.search(r"tesseract\s+v?(\d+)\.", out.stdout + out.stderr)
+        return int(m.group(1)) if m else None
+    except Exception:  # noqa: BLE001 - unknown version: keep the default models
+        return None
+
+
 def configure_ocr(cfg: dict) -> dict:
     """Point pytesseract at the right program/models. Returns a status dict."""
     import pytesseract
@@ -41,15 +51,9 @@ def configure_ocr(cfg: dict) -> dict:
     if not cmd and sys.platform == "win32":
         default = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
         cmd = str(default) if default.exists() else None
-    tessdata = _bundled("tessdata")
-    if tessdata and (tessdata / "hin.traineddata").exists():
-        os.environ["TESSDATA_PREFIX"] = str(tessdata)
-
-    status = {"tesseract": cmd, "tessdata": os.environ.get("TESSDATA_PREFIX", "system"),
-              "ok": False, "message": ""}
     if not cmd:
-        status["message"] = "Tesseract OCR not found. Scanned pages cannot be read."
-        return status
+        return {"tesseract": None, "tessdata": "system", "ok": False,
+                "message": "Tesseract OCR not found. Scanned pages cannot be read."}
     pytesseract.pytesseract.tesseract_cmd = cmd
     if sys.platform.startswith("linux") and getattr(sys, "frozen", False):
         # The app's launcher points LD_LIBRARY_PATH at the libraries bundled in the app.
@@ -60,10 +64,22 @@ def configure_ocr(cfg: dict) -> dict:
             os.environ["LD_LIBRARY_PATH"] = orig
         else:
             os.environ.pop("LD_LIBRARY_PATH", None)
+
+    kwargs = {"capture_output": True, "text": True, "timeout": 30}
+    if sys.platform == "win32":
+        kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW
+    # Tesseract 4.x (Ubuntu 20.04/22.04) runs the most accurate models in slow double
+    # precision: ~2.5x slower than the fast models, and no more accurate. Use those there.
+    tessdata = _bundled("tessdata")
+    fast = _bundled("tessdata_fast")
+    if fast and _tesseract_major(cmd, kwargs) == 4:
+        tessdata = fast
+    if tessdata and (tessdata / "hin.traineddata").exists():
+        os.environ["TESSDATA_PREFIX"] = str(tessdata)
+
+    status = {"tesseract": cmd, "tessdata": os.environ.get("TESSDATA_PREFIX", "system"),
+              "ok": False, "message": ""}
     try:
-        kwargs = {"capture_output": True, "text": True, "timeout": 30}
-        if sys.platform == "win32":
-            kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW
         out = subprocess.run([cmd, "--list-langs"], **kwargs)
         langs = set((out.stdout + out.stderr).split())
         missing = [lang for lang in REQUIRED_LANGS if lang not in langs]

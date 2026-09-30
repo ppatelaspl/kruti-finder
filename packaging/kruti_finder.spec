@@ -11,6 +11,8 @@ VERSION = re.search(r'"(.+)"', (ROOT / "app" / "version.py").read_text()).group(
 
 datas = [(str(ROOT / "app" / "assets"), "app/assets"),
          (str(ROOT / "vendor" / "tessdata"), "tessdata")]
+if (ROOT / "vendor" / "tessdata_fast").exists():          # Linux: for Tesseract 4.x
+    datas.append((str(ROOT / "vendor" / "tessdata_fast"), "tessdata_fast"))
 if (ROOT / "vendor" / "tesseract").exists():
     datas.append((str(ROOT / "vendor" / "tesseract"), "tesseract"))
 

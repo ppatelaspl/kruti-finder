@@ -25,7 +25,7 @@ Each build runs a **self-test** on its own platform. The packaged app must start
 |---|---|---|---|
 | Windows | UB-Mannheim build (Chocolatey), copied into the app | bundled | Inno Setup `.exe` |
 | macOS | built from source by `packaging/macos/build_tesseract.sh` (one static binary, macOS 11+) | bundled | `.dmg` |
-| Linux | distro `tesseract-ocr` (declared dependency) | bundled | `.deb`, built on Debian 11 |
+| Linux | distro `tesseract-ocr` (declared dependency) | bundled; plus `tessdata_fast`, used when the distro Tesseract is 4.x (Ubuntu 20.04/22.04), which runs the best models ~2.5x slower | `.deb`, built on Debian 11 |
 
 The Linux app is built inside a Debian 11 container (`packaging/linux/build_linux.sh`): PyInstaller copies the build machine's system libraries into the app, so an older build machine means the app runs on more distros (Ubuntu 20.04+, Mint 20+, LMDE 6+, Debian 11+). The `linux-test` job installs the `.deb` on each of those and opens the app. PySide6 is pinned in `packaging/requirements-build.txt` because newer Qt versions drop macOS 11/12 and Ubuntu 20.04.
 

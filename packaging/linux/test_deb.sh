@@ -15,8 +15,11 @@ dpkg -s kruti-finder | grep -E "^(Status|Version)"
 
 kruti-finder --selftest /tmp/selftest.json "$(dirname "$0")/../selftest_devanagari.png" \
   || { cat /tmp/selftest.json; exit 1; }
-python3 -c "import json;r=json.load(open('/tmp/selftest.json'));print('selftest ok:',r['ok'],'-',r['ocr']['message'])" \
+python3 -c "import json;r=json.load(open('/tmp/selftest.json'));print('selftest ok:',r['ok'],'-',r['ocr']['message'],'-',r['ocr']['tessdata'])" \
   2>/dev/null || cat /tmp/selftest.json
+# Tesseract 4.x runs the best models ~2.5x slower: the app must pick the fast ones there
+if tesseract --version 2>&1 | grep -qE "^tesseract v?4\." && ! grep -q tessdata_fast /tmp/selftest.json; then
+  echo "Tesseract 4 but not using the fast models"; exit 1; fi
 
 # The real window, on the real xcb platform plugin. Still running after 10 s = it started.
 xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
