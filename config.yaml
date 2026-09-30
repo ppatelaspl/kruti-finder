@@ -32,6 +32,10 @@ max_kruti_pages: 40            # end must be within this many pages of the start
 min_verses: 2                  # ignore numbered blocks shorter than this
 max_opening_chars: 600         # how far back from verse 1 to take the title and opening
 title_keywords: ["स्तवन", "सज्झाय", "स्तुति", "थोय", "चैत्यवंदन", "गीत", "पद", "लावणी",
-                 "छंद", "ढाल", "ढाळ", "रास", "कलश", "स्तोत्र", "गहूंली", "भास", "चोवीसी", "बावनी"]
+                 "छंद", "रास", "स्तोत्र", "गहूंली", "भास", "चोवीसी", "बावनी"]
                                # a heading line containing one of these starts a new Kruti
+section_keywords: ["ढाल", "ढाळ", "दुहा", "दूहा", "दुहो", "दूहो", "दोहा", "दोहरा", "कलश", "सोरठा", "सोरठो",
+                   "चोपाई", "चौपाई"]
+                               # parts inside one Kruti (dhal, doha, kalash): verse numbers
+                               # restart there, but no new Kruti starts
 duplicate_threshold: 88        # same Kruti in two books/places = one Kruti ID (match %)

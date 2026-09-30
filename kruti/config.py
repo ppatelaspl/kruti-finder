@@ -28,8 +28,11 @@ DEFAULTS = {
     "min_verses": 2,
     "max_opening_chars": 600,
     "title_keywords": ["स्तवन", "सज्झाय", "स्तुति", "थोय", "चैत्यवंदन", "गीत", "पद", "लावणी",
-                       "छंद", "ढाल", "ढाळ", "रास", "कलश", "स्तोत्र", "गहूंली", "भास",
-                       "चोवीसी", "बावनी"],
+                       "छंद", "रास", "स्तोत्र", "गहूंली", "भास", "चोवीसी", "बावनी"],
+    # parts inside one Kruti (a sajjhay/ras in several dhals, with dohas and a kalash):
+    # their verse numbers restart, but they do not start a new Kruti
+    "section_keywords": ["ढाल", "ढाळ", "दुहा", "दूहा", "दुहो", "दूहो", "दोहा", "दोहरा", "कलश", "सोरठा",
+                         "सोरठो", "चोपाई", "चौपाई"],
     "name_match_threshold": 85,
     "max_kruti_pages_check": 8,
     "live_count_seconds": 10,       # how often "Kruti found" is refreshed while reading     # a Kruti longer than this is flagged for review

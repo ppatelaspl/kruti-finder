@@ -307,3 +307,94 @@ def test_long_verse_gives_its_first_and_last_line():
     assert k.aadi == "प्रथम जिनेश्वर प्रणमीए, जास सुगंधी रे काय, कल्पवेली परे विस्तरी"
     assert k.ant == "कीर्ति सदा जग विस्तरी, गावे मुनि गुणवंत"
     assert not k.checks
+
+
+# Real OCR, B018723 sazzay sarita p.345-348 (Gujarati): a multi-part sajjhay. Its dhals
+# (ઢાળ ૪), dohas (દુહા) and kalash restart verse numbers but are parts of ONE Kruti.
+SAJJHAY = """172. સુદર્શન શેઠની સજઝાય
+શેઠ સુદર્શન પ્રિયા નામે મનોરમા જેહ લલના;
+રૂપે રતિ સમ સુંદરી શીલવતી ગુણ ગેહ લલના; શીલ૦ ૧
+કહે કપિલા તે કિલબ છે જૂઠ ધરે નર વેશ લલના;
+કિમ જાણ્યુ રાણી કહે કહે વૃત્તાત અશેષ લલના; શીલ૦ ૨
+ઢાળ ૪
+હવે અભયા થઈ આકરી રે લાલ ચૂકવવા તસ શીલ રાયજાદી;
+ધાવ માતા તસ પંડિતા રે લાલ તેડી કહે નિજ ચિત્ત રાયજાદી; ખલ૦ ૧
+સુણ પુત્રી કહે પંડિતા રે લાલ તુજ હઠ ખોટી અત્યંત રાયજાદી;
+એક દોય ત્રણ ઈમ કામની રે લાલ મૂરતિ આણી તામ રાયજાદી; ખલ૦ ૨
+દુહા
+બીજે દિવસે ગવેષવા, વસુદત્તના સુત ચાર;
+ભીંત પડી ઉપડાવતાં, મળી સોવન શ્રીકાર. ૧
+કલશ
+ઈમ શેઠ સુદર્શન શીલ પાળી પામ્યા ભવનો પાર;
+શ્રી શુભવીર વચન રસ પીતાં લહીએ સુખ અપાર. ૧
+173. સુનંદા રૂપસેનની સજઝાય
+ખેટમુની કહે ધન્ય તુમે સાતે જણાં એક વયણે પ્રતિબોધ લહ્યો;
+ન રહી શકે મન ધર્મ વિના સુખ પામે તે જિન વચન કહ્યો. ૧
+ત્રીજે ખંડે ઢાળ એ છઠ્ઠી મન ધરો શ્રી શુભવીર વચન રસે;
+રૂપસેન સુનંદા ગુણ ગાતાં પાપ પડલ સવિ દૂર ખસે. ૨
+"""
+
+
+def test_dhal_doha_kalash_are_parts_of_one_kruti():
+    from kruti.normalize import devanagari_to_gujarati as guj
+    ks = _krutis(SAJJHAY)
+    for k in ks:                       # the pipeline shows Gujarati books in Gujarati
+        k.title, k.aadi, k.ant = guj(k.title), guj(k.aadi), guj(k.ant)
+    titles = [k.title for k in ks]
+    assert titles == ["સુદર્શન શેઠની સજઝાય", "સુનંદા રૂપસેનની સજઝાય"], titles
+    first = ks[0]
+    assert first.aadi.startswith("શેઠ સુદર્શન પ્રિયા નામે મનોરમા")
+    assert "ભવનો પાર" in first.ant or "સુખ અપાર" in first.ant    # its kalash, not dhal 1
+    assert first.verses == 6                                     # 2 + 2 + 1 + 1 across parts
+
+
+def test_repeated_part_headings_are_not_taken_for_page_headers():
+    # "ઢાળ ૩", "ઢાળ ૪" ... repeat on many pages (as "ढाळ" without the number) but sit
+    # mid-page; only lines at a page's top/bottom are running headers
+    pages = []
+    for i in range(1, 6):
+        pages.append(PageText(i, "ocr", 90.0,
+                              f"સજ્ઝાય સરિતા\nએક દિન ઈન્દ્ર મહોત્સવે રાજાદિક સવિ લોક લલના ... {i}\n"
+                              f"ઢાળ {i + 1}\nકીડા કારા આવીયા સજ્જ કરી સઘળા થોક લલના;\n"
+                              f"શીલ ભલી પેરે પાળીએ... ૧\nસજ્ઝાય સરિતા {i + 100}"))
+    book = Book.from_pages("b.pdf", pages)
+    assert book.light.count("ढाळ") == 5            # part headings kept
+    assert "सरिता" not in book.light               # the running header removed
+
+
+# Real OCR, B018723 p.346-348 (Gujarati, shown here after conversion to Devanagari)
+PARTS_AND_NEXT = """धाव माता तस पंडिता रे लाल कहे सवि वात सलील रायजादी... खल0 9
+एक दोय त्रण ईम कामनी रे लाल मूरति आणी ताम रायग्नद्दी,
+प्रतिमाधर ईम रोठने रे लाल कपटे आण्यो धाम रायजादी... खल0 10
+ढाळ प
+अभया काम विकार करी आलिगती हो लाल-डरी0
+कोमल कमल मृणाल भुजारयुं विटती हो लाल-भूजाट...
+निज थण मंडल पीडे तस करशुं गृही हो लाल-तस0
+अंगो पांगे सर्व के फरसे ते सही हो लो-के0... 2
+सहज सोभागी समकित उजळुं रे गुणीनां गुणगातां आनंद थाय रे
+ज्ञानविमल गुर वाधे अतिघणा रे अधिक उदय होवे सवाय रे
+मोटो0 3
+172. सुनंदा रूपसेननी सजझाय (ढाळ-2)
+ढाळ 1:
+खेटमुनी कहे धन्य तुमे साते जणां एक वयणे प्रतिबोध लह्यो न रही मणां;
+रात उपदेशे पण राय न बूझीयो पापी प्राणी... 1
+त्रीजे खंडे ढाळ ए छठ्ठी मन धरो श्री शुभवीर वचन रसे... 2
+"""
+
+
+def test_unreadable_part_number_and_parenthetical_heading():
+    ks = _krutis(PARTS_AND_NEXT)
+    titles = [k.title for k in ks]
+    assert len(ks) == 2, titles                       # the dhals of one Kruti, then the next
+    assert not any("निज थण" in t for t in titles)      # a verse line is never a title
+    assert ks[1].title.startswith("सुनंदा रूपसेननी सजझाय")
+    assert ks[1].aadi.startswith("खेटमुनी कहे धन्य")
+
+
+def test_part_heading_with_tune_note_stays_in_the_kruti():
+    # B016768 navpad manjusha: "ढाल तेरहवीं -नारायणकी देशी …" and "दुहो" are parts
+    text = ("नवपद पूजा.\nअरिहंत पद पूजीए, भवि भावे मन उल्लास ॥1॥ सिद्ध पद सेवीए, पामो शिव वास ॥2॥\n"
+            "ढाल तेरहवीं -नारायणकी देशी जिम मधुकर मन मालती\nजिनवर नमीए भाव थी, वीर जिणंद उपदेश ॥1॥ "
+            "गुरु गौतम गुण गाईए, पामो सुख विशेष ॥2॥\nदुहो\nअनंत चतुष्टय पामवा, सज्ज द्रव्य गुण पर्याय ॥1॥")
+    ks = _krutis(text)
+    assert [k.title for k in ks] == ["नवपद पूजा"] and ks[0].verses == 5

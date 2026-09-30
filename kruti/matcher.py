@@ -24,11 +24,19 @@ def _furniture_key(line: str) -> str:
     return re.sub(r"[\d\[\]()%|।॥.:*\-–—]+", " ", line).strip()
 
 
+def _edge_lines(text):
+    """A page's first and last two lines - where running headers/footers sit."""
+    lines = [ln for ln in text.split("\n") if ln.strip()]
+    return lines if len(lines) <= 4 else lines[:2] + lines[-2:]
+
+
 def _running_lines(texts, share):
-    """Short lines repeated on many pages: running book titles, chapter headers."""
+    """Short lines repeated at the top/bottom of many pages: running book titles, chapter
+    headers. Lines inside the page do not count: a part heading like "ढाळ ४" repeats on
+    many pages too, but it is Kruti content."""
     counts = defaultdict(int)
     for t in texts:
-        for k in {_furniture_key(ln) for ln in t.split("\n")
+        for k in {_furniture_key(ln) for ln in _edge_lines(t)
                   if 0 < len(ln.strip()) <= 60 and not re.search(r"[।॥]", ln)}:
             if k:
                 counts[k] += 1
@@ -45,10 +53,12 @@ def _is_page_furniture(line: str, repeated: set, edge: bool) -> bool:
         return True
     if len(stripped) > 60 or re.search(r"[।॥]", stripped):
         return False
+    if not edge:
+        return False
     key = _furniture_key(stripped)
     if key in repeated:
         return True
-    return edge and bool(repeated) and process.extractOne(
+    return bool(repeated) and process.extractOne(
         key, repeated, scorer=fuzz.ratio, score_cutoff=75) is not None
 
 

@@ -70,7 +70,8 @@ class Kruti:
 # A heading candidate: a short phrase right after a number marker (16॥, ॥16॥) or at the
 # start of a line, closed by heading punctuation.  "16॥ नेमनाथजीनी लावणी. ।"
 _MARKER = re.compile(r"\d{1,3}\s*[।॥]")
-_PHRASE = re.compile(r"[\s।॥|'\"“]*([^\n.,;:।॥]{3,60}?)\s*([.:।॥\n]|$)")
+# (an optional book serial first: "173. सुनंदा रूपसेननी सज्झाय")
+_PHRASE = re.compile(r"[\s।॥|'\"“]*(?:\d{1,4}\s*[.)]\s+)?([^\n.,;:।॥]{3,60}?)\s*([.:।॥\n]|$)")
 _HEAD_TRIM = " .:-।॥\"'“”"
 _SERIAL = re.compile(r"\s*[\[(]\s*[^\s\[\]()]{1,3}\s*[\])]?\s*$")          # "नु [8]" inside the phrase
 _SERIAL_REST = re.compile(r"\s*[।॥|\[(]?\s*[^\s\[\]()]{1,3}\s*[\])]\s*")  # "नु । 12]" after it
@@ -126,7 +127,8 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
         phrase = phrase.strip(_HEAD_TRIM)
         # a restart only vouches for a phrase closed by heading punctuation, not a bare line
         vouched = bracketed or (restart and m.group(2) in ".।")
-        if _is_title(phrase, title_keys, name_keys, name_score, vouched):
+        core = re.sub(r"\s*\([^)]*\)?\s*$", "", phrase)   # "…सज्झाय (ढाळ-2)": note on parts
+        if _is_title(core or phrase, title_keys, name_keys, name_score, vouched):
             end = line_end if bracketed else m.end()
             while end < len(text) and text[end] in " .:-।":   # "लावणी. ।"
                 end += 1
@@ -134,11 +136,25 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
     return None
 
 
+_PART_LINE = 80      # "ढाल तेरहवीं - नारायणकी देशी …": a part heading may carry its tune
+
+
+def _section_break(text: str, section_keys: list) -> bool:
+    """A part heading inside one Kruti - "ढाळ ४", "दुहा", "कलश" - on its own line or
+    between dandas. Verse numbers restart after it, yet the Kruti goes on."""
+    for piece in re.split(r"[\n।॥]", text):
+        words = piece.split()
+        if words and len(piece.strip()) <= _PART_LINE and key_only(words[0]) in section_keys:
+            return True
+    return False
+
+
 def _verse_blocks(light: str, title_keys: list, name_keys: list, name_score: float,
-                  pattern=_VERSE_MARK):
+                  pattern=_VERSE_MARK, section_keys=()):
     """Split the book at headings first, then at verse numbers restarting at 1.
     Each block: {"marks": [(n, start, end)], "heading": (start, end, title) or None}."""
     blocks, current, heading, prev_end = [], [], None, 0
+    section_open = False
 
     def close():
         nonlocal current, heading
@@ -157,11 +173,29 @@ def _verse_blocks(light: str, title_keys: list, name_keys: list, name_score: flo
         if n == 0:                          # OCR misread; keep the sequence going
             n = current[-1][0] + 1 if current else 1
         restart = n == 1 and bool(current) and current[-1][0] > 1
-        head = _find_heading(light[prev_end:m.start()], prev_end, title_keys, name_keys,
-                             name_score, restart)
+        segment = light[prev_end:m.start()]
+        before = re.split(r"[\n।॥]", segment)[-1]     # words just before this number
+        # "ढाळ ४" / "दुहा" / "कलश": a part of the same Kruti, whose verses restart at 1
+        own_part = bool(current) and bool(section_keys) and _section_break(before, section_keys)
+        in_part = own_part or (bool(current) and bool(section_keys) and (
+            section_open or _section_break(segment, section_keys)))
+        # a Kruti heading still wins ("172. …सज्झाय" followed by "ढाळ १"); inside a part a
+        # restart alone does not vouch for a heading (it would take refrains for titles)
+        head = _find_heading(segment, prev_end, title_keys, name_keys, name_score,
+                             restart and not in_part)
         if head:
             close()                         # the heading ends the previous Kruti
-            heading, n = head, 1
+            heading, n, section_open = head, 1, own_part
+            if own_part:                    # the number belongs to "ढाळ १", not a verse
+                prev_end = m.end()
+                continue
+        elif own_part:
+            prev_end, section_open = m.end(), True
+            continue
+        elif in_part:
+            section_open = False
+            if not raw.isdigit():            # "ढाळ प" (OCR): the new part starts at verse 1
+                n = 1
         elif current and n < current[-1][0] and n <= 2:
             close()
         prev_end = m.end()
@@ -175,10 +209,21 @@ def _clean(text: str) -> str:
 
 
 def _verse_count(marks) -> int:
-    """Highest verse number that fits the sequence. Books print a running Kruti number
-    after the last verse (॥ 6॥ ॥98॥) and OCR invents numbers (॥ 020 ॥); neither counts."""
-    fitting = [n for i, (n, _s, _e) in enumerate(marks) if n <= i + 4]
-    return max(fitting) if fitting else len(marks)
+    """Verses in the Kruti: in each part (numbering restarts at every dhal/doha), the
+    highest verse number that fits the sequence. Books print a running Kruti number after
+    the last verse (॥ 6॥ ॥98॥) and OCR invents numbers (॥ 020 ॥); neither counts."""
+    runs, run = [], []
+    for n, _s, _e in marks:
+        if run and (n == 1 or (n == 2 and run[-1] > 2)):
+            runs.append(run)
+            run = []
+        run.append(n)
+    runs.append(run)
+    total = 0
+    for run in runs:
+        fitting = [n for i, n in enumerate(run) if n <= i + 4]
+        total += max(fitting) if fitting else len(run)
+    return total
 
 
 def _letters(text: str) -> int:
@@ -239,23 +284,33 @@ def _looks_like_list(text: str) -> bool:
     return len(numbers) >= 6 and len(numbers) / max(1, _letters(text)) > 0.1
 
 
-def _split_title(opening: str):
-    """Short heading lines before verse 1 (no dandas/commas) are the Kruti title."""
+def _split_title(opening: str, title_keys=(), name_keys=(), name_score=85):
+    """Short heading lines before verse 1 are the Kruti title - but only when they look like
+    one (a Kruti-type word, an Excel name, or closed by a full stop): OCR often drops the
+    commas of a verse line, so shortness alone would make verse lines into titles."""
     lines = [ln.strip() for ln in opening.split("\n") if ln.strip()]
     title = []
     while len(lines) > 1 and len(lines[0]) <= 60 and not _VERSE_PUNCT.search(lines[0]):
+        line = re.sub(r"^\d{1,4}\s*[.)]\s*", "", lines[0])
+        core = re.sub(r"\s*\([^)]*\)?\s*$", "", line).strip(_HEAD_TRIM)
+        looks = _is_title(core, list(title_keys), list(name_keys), name_score) or \
+            bool(re.search(r"[^.]\.\s*$", line))
+        if not looks:
+            break
         title.append(lines.pop(0))
-    return _clean(" ".join(title)).strip(_HEAD_TRIM), _clean(" ".join(lines))
+    title = re.sub(r"^\d{1,4}\s*[.)]\s*", "", _clean(" ".join(title)))   # "172. …"
+    return title.strip(_HEAD_TRIM), _clean(" ".join(lines))
 
 
 def find_krutis(book, page_conf: dict, cfg, names=()) -> list:
     """names: Kruti names from the Excel; a heading matching one starts a new Kruti."""
     found, prev_end = [], 0
     title_keys = [key_only(t) for t in cfg.get("title_keywords", []) if key_only(t)]
+    section_keys = [key_only(t) for t in cfg.get("section_keywords", []) if key_only(t)]
     name_keys = [k for k in (key_only(n) for n in names if n) if len(k) >= 3]
     pattern = verse_pattern(book.light, len(book.page_numbers))
     for block in _verse_blocks(book.light, title_keys, name_keys, cfg["name_match_threshold"],
-                               pattern):
+                               pattern, section_keys):
         marks, heading = block["marks"], block["heading"]
         first, last = marks[0], marks[-1]
         if heading:                         # a detected heading fixes where the Kruti starts
@@ -265,13 +320,17 @@ def find_krutis(book, page_conf: dict, cfg, names=()) -> list:
             block_start = max(prev_end, first[1] - cfg["max_opening_chars"])
             while block_start < first[1] and book.light[block_start].isspace():
                 block_start += 1
-            title, opening = _split_title(book.light[block_start:first[2]])
+            title, opening = _split_title(book.light[block_start:first[2]], title_keys,
+                                          name_keys, cfg["name_match_threshold"])
         block_end = last[2]
         prev_end = block_end
         if len(marks) < cfg["min_verses"] and not heading:
             continue
 
         body = opening + book.light[first[2]:block_end]      # the Kruti's text after its title
+        body = "\n".join(ln for ln in body.split("\n")          # minus "ढाळ १:" part headings
+                         if not (len(ln.strip()) <= _PART_LINE and ln.split()
+                                 and key_only(ln.split()[0]) in section_keys))
         sents = _sentences(body, raw=True)
         aadi_full = _vakya(sents[0], True) if sents else ""
         ant_full = _vakya(sents[-1], False) if sents else ""
