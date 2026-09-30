@@ -386,6 +386,7 @@ class MainWindow(QMainWindow):
         run_dir = Path(out) / time.strftime("Run %Y-%m-%d %H-%M")
         self.results_bar.hide()
         self.log_view.clear()
+        self._reset_progress()
         self._set_running(True)
         self._log(f"Output: {run_dir}")
 
@@ -475,8 +476,17 @@ class MainWindow(QMainWindow):
 
     def _on_cancelled(self):
         self._set_running(False)
-        self.stage_label.setText("Cancelled - pages read so far are saved")
+        self._reset_progress()
         self._log("Cancelled. Start again to continue; finished pages are not re-read.")
+
+    def _reset_progress(self):
+        self.stage_label.setText("Ready")
+        self.book_label.setText("")
+        for bar in (self.overall_bar, self.book_bar):
+            bar.reset()
+            bar.setFormat("%p%")
+        for val in self.stats.values():
+            val.setText("–")
 
     def _cleanup_thread(self):
         if self.worker:
