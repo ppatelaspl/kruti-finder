@@ -484,3 +484,27 @@ def test_bracketed_number_alone_on_a_line():
             "। [2]\nप्रणमुं श्री देवाधिदेव, जिनवर महावीर...1...\nशासन नायक जग जयो, वरते जय जयकार...2...")
     ks = _krutis(text)
     assert len(ks) == 2 and ks[1].aadi.startswith("प्रणमुं श्री देवाधिदेव")
+
+
+def test_lone_short_line_before_restarted_verses_is_the_title():
+    # B018723: "…सगुढ 6⏎294. वैराग्यनी साय⏎सार नहि रे संसारमां…" in a book numbering
+    # verses "N." - the serial 294 is read as a verse number, the title stands alone
+    prev = "".join(f"गुरु गुण गावो भाव धरीने पामो सुख अपार रे {i}.\n" for i in range(1, 9))
+    text = (prev + "294. वैराग्यनी साय\n"
+            "सार नहि रे संसारमां करो मनमां विचार जी 1.\nनेत्र उघाडीने जोईए करीए दृष्टि पसार जी 2.\n")
+    ks = _krutis(text)
+    assert [k.title for k in ks][-1:] == ["वैराग्यनी साय"], [k.title for k in ks]
+    assert ks[-1].aadi.startswith("सार नहि रे संसारमां")
+
+
+def test_first_verse_line_is_not_taken_for_a_title():
+    # a new Kruti with no title printed: its first line is long / has a comma -> no title
+    text = ("गुरु गुण गावो भाव धरीने, पामो सुख अपार रे ॥1॥ समकित निरमल धारीए, टाळो भव भार रे ॥2॥\n"
+            "सार नहि रे संसारमां, करो मनमां विचार जी ॥1॥ नेत्र उघाडीने जोईए, करीए दृष्टि पसार जी ॥2॥")
+    assert [k.title for k in _krutis(text)] == ["", ""]
+
+
+def test_junk_line_is_not_a_title():
+    text = ("गुरु गुण गावो भाव धरीने, पामो सुख अपार रे ॥1॥ समकित निरमल धारीए, टाळो भव भार रे ॥2॥\n"
+            "द्वरिझे 939 ल्दिझे 9798\nसार नहि रे संसारमां, करो मनमां विचार जी ॥1॥ नेत्र उघाडीने जोईए ॥2॥")
+    assert [k.title for k in _krutis(text)] == ["", ""]

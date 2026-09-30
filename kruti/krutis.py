@@ -87,6 +87,14 @@ def _ends_with_type(key: str, type_key: str) -> bool:
         fuzz.ratio(key[-w:], type_key) for w in (n, n + 1)) >= 70
 
 
+def _plausible_title(phrase: str) -> bool:
+    """Not OCR junk ("द्वरिझे 939 ल्दिझे 9798") or a stray verse fragment ("जये")."""
+    chars = [c for c in phrase if not c.isspace()]
+    letters = _letters(phrase)
+    return (letters >= 5 and letters >= 0.8 * len(chars)
+            and not re.search(r"\d{3,}", phrase) and len(key_only(phrase)) >= 4)
+
+
 def _is_title(phrase: str, title_keys: list, name_keys: list, name_score: float,
               restart: bool = False) -> bool:
     """Structure alone is not enough: the phrase must also name a Kruti type
@@ -97,8 +105,10 @@ def _is_title(phrase: str, title_keys: list, name_keys: list, name_score: float,
     k = key_only(phrase)
     if len(k) < 3:
         return False
-    if restart or any(_ends_with_type(k, t) for t in title_keys):
+    if any(_ends_with_type(k, t) for t in title_keys):
         return True
+    if restart:                  # vouched by structure alone: it must also look like words
+        return _plausible_title(phrase)
     words = phrase.split()                   # "पद बारमुं", "स्तवन 5": type word first
     if len(words) <= 4 and key_only(words[0]) in title_keys:
         return True
@@ -127,6 +137,8 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
         m = _PHRASE.match(text, pos)
         if not m or text.startswith("..", m.start(3)):   # "…रयण भंडार... 1..." is a verse
             continue
+        if m.group(3) == "." and re.search(r"\d\s*$", m.group(2)):
+            continue                          # "…विचार जी 1.": a verse number, not a heading
         phrase = re.sub(r"^[\d\s.]+", "", m.group(2))                      # "8569 लावणी"
         # "सुपाश्वेनाथ नु [7]": a line holding only a name and a bracketed serial number
         # (often OCR-garbled: [छ], । 12]) is as strong a sign as verses restarting at 1
@@ -147,7 +159,12 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
         at_line_start = pos == 0 or text[pos - 1] == "\n"
         numbered = (bool(m.group(1)) and len(phrase.split()) <= 6 and m.group(3) in ".:।\n"
                     and (at_line_start or not m.group(1).strip()[-1:].isdigit()))
-        vouched = bracketed or numbered or bool(atha) or (restart and m.group(3) in ".।")
+        # when verses restart at 1, the title may stand alone on its line with no heading
+        # punctuation ("…सगुढ 6⏎वैराग्यनी साय⏎सार नहि रे…"): short, no comma
+        lone = (m.group(3) == "\n" and len(phrase) <= 45 and len(phrase.split()) <= 6
+                and not re.search(r"[,;]", text[m.start(2):line_end]))
+        vouched = bracketed or numbered or bool(atha) or (
+            restart and (m.group(3) in ".।" or lone))
         core = re.sub(r"\s*\([^)]*\)?\s*$", "", phrase)   # "…सज्झाय (ढाळ-2)": note on parts
         if _is_title(core or phrase, title_keys, name_keys, name_score, vouched):
             end = line_end if bracketed else m.end()
