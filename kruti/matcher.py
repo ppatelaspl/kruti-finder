@@ -37,21 +37,39 @@ def _running_lines(texts, share):
     counts = defaultdict(int)
     for t in texts:
         for k in {_furniture_key(ln) for ln in _edge_lines(t)
-                  if 0 < len(ln.strip()) <= 60 and not re.search(r"[।॥]", ln)}:
+                  if 0 < len(ln.strip()) <= 60 and not re.search(r"[।॥]", ln.strip().rstrip("।. "))}:
             if k:
                 counts[k] += 1
     limit = max(3, share * len(texts))
     return {k for k, c in counts.items() if c >= limit}
 
 
-def _is_page_furniture(line: str, repeated: set, edge: bool) -> bool:
-    """Page numbers and running headers/footers must not leak into Kruti text.
+# "# पाठान्तर "संपद्"", "* पाठान्तर 'ठामि'": a footnote at the foot of the page
+_FOOTNOTE = re.compile(r"^\s*([#*†]|\(?\s*(पाठान्तर|पाटान्तर|पाठांतर|टिप्पणी|टीप)\b)")
+
+
+def _is_running_header(line: str, page_no) -> bool:
+    """"यवीयराय सूत्र । 11", "12 अभय रत्नसार ।": a short top/bottom line carrying the
+    printed page number next to a book or Kruti name. The name changes from page to page,
+    so only the page number gives it away."""
+    stripped = line.strip()
+    if page_no is None or len(stripped) > 60 or "," in stripped.rstrip(",. "):
+        return False
+    nums = re.findall(r"(?<!\d)\d{1,4}(?!\d)", stripped)
+    return str(page_no) in nums and bool(re.search(r"[^\W\d_]{2}", stripped))
+
+
+def _is_page_furniture(line: str, repeated: set, edge: bool, page_no=None) -> bool:
+    """Page numbers, running headers/footers and footnotes must not leak into Kruti text.
     Lines at the top/bottom of a page are also matched fuzzily, because OCR spells a
     header slightly differently on each page."""
     stripped = line.strip()
     if re.fullmatch(r"[\d\s\-–—()\[\].|]+", stripped):
         return True
-    if len(stripped) > 60 or re.search(r"[।॥]", stripped):
+    if edge and (_is_running_header(stripped, page_no) or _FOOTNOTE.match(stripped)):
+        return True
+    # "अभय रत्नसार ।": one closing danda is still a header; dandas inside mean a verse
+    if len(stripped) > 60 or re.search(r"[।॥]", stripped.rstrip("।. ")):
         return False
     if not edge:
         return False
@@ -71,7 +89,7 @@ def _page_number_candidates(lines) -> set:
     edge = lines[:2] + lines[-2:] if len(lines) > 4 else lines
     found = set()
     for ln in edge:
-        if len(ln.strip()) <= 40:
+        if len(ln.strip()) <= 60:       # "(10) महामहोपाध्याय श्री यशोविजयजी कृत. _ __"
             for m in _PAGE_NO.finditer(ln.strip()):
                 found.add(int(m.group(1) or m.group(2)))
     return found
@@ -92,6 +110,21 @@ def _printed_page_numbers(candidates: dict) -> dict:
     return {pdf: pdf + offset for pdf in candidates if pdf + offset > 0}
 
 
+def _local_page_numbers(candidates: dict, reach: int = 4) -> dict:
+    """Books that restart their page numbers for each work they contain ("(2)", "(20)" in
+    one stavan's pages, "(1)" again in the next) have no single offset. A number is still a
+    page number when a nearby page shows a number at the same offset."""
+    found = {}
+    for pdf, nums in candidates.items():
+        for n in nums:
+            # two pages agreeing: one could be a verse number that happens to fit
+            if sum(q != pdf and n - pdf + q in candidates.get(q, ())
+                   for q in range(pdf - reach, pdf + reach + 1)) >= 2:
+                found[pdf] = n
+                break
+    return found
+
+
 @dataclass
 class Book:
     name: str
@@ -101,18 +134,22 @@ class Book:
     key: str = ""
     key_map: list = field(default_factory=list)
     printed: dict = field(default_factory=dict)   # PDF page -> page number printed in the book
+    non_kruti: list = None     # (start, end, kind) of preface/index/explanation text
 
     @classmethod
     def from_pages(cls, name, pages, header_share: float = 0.2):
         texts = [light_normalize(p.text) for p in pages]
         repeated = _running_lines(texts, header_share)
         parts, starts, numbers, pos = [], [], [], 0
-        seen_numbers = {}
-        for p, raw in zip(pages, texts):
-            lines = [ln for ln in raw.split("\n") if ln.strip()]
-            seen_numbers[p.page] = _page_number_candidates(lines)
+        page_lines = [[ln for ln in raw.split("\n") if ln.strip()] for raw in texts]
+        seen_numbers = {p.page: _page_number_candidates(lines)
+                        for p, lines in zip(pages, page_lines)}
+        printed = {**_printed_page_numbers(seen_numbers), **_local_page_numbers(seen_numbers)}
+        for p, lines in zip(pages, page_lines):
+            # footnotes sit at the foot of the page, below the last verse: up to 3 lines
             lines = [ln for i, ln in enumerate(lines) if not _is_page_furniture(
-                ln, repeated, edge=i < 2 or i >= len(lines) - 2)]
+                ln, repeated, edge=i < 2 or i >= len(lines) - (3 if _FOOTNOTE.match(ln) else 2),
+                page_no=printed.get(p.page))]
             txt = "\n".join(lines) + "\n"
             starts.append(pos)
             numbers.append(p.page)
@@ -120,7 +157,7 @@ class Book:
             pos += len(txt)
         book = cls(name, "".join(parts), starts, numbers)
         book.key, book.key_map = make_key(book.light)
-        book.printed = _printed_page_numbers(seen_numbers)
+        book.printed = printed
         return book
 
     def printed_page(self, pdf_page):

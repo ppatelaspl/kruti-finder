@@ -13,6 +13,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from .content import EXPLANATION, INDEX, PROSE, inside
 from .extract import extract_book, page_count
 from .krutis import Kruti, _sentences, assign_groups, find_krutis
 from .matcher import FOUND, Book, BookIndex, locate
@@ -155,6 +156,13 @@ def _attach_matches(book, found, occurrences, krutis_by_id, page_script):
     """Mark each Kruti found in the book with the Excel Kruti whose start/end match covers
     it. Excel Kruti matched in the book but not split out as a block (no verse numbers)
     are added as rows of their own, so every match is listed."""
+    # an Excel Kruti whose first line lies in preface/index/explanation text is not a
+    # Kruti of this book: a commentary (बालावबोध, टीका) printed between the verses must not
+    # lend its number to the verses around it
+    spans = book.non_kruti or []
+    occurrences = [(kid, o) for kid, o in occurrences
+                   if not inside(spans, o.span_light[0], o.span_light[0] + 40,
+                                 (PROSE, INDEX, EXPLANATION))]
     used = set()
     for k in found:
         s, e = k.span
@@ -173,6 +181,8 @@ def _attach_matches(book, found, occurrences, krutis_by_id, page_script):
         if i in used or o.status != FOUND:
             continue
         s, e = o.span_light
+        if inside(spans, s, e, (PROSE, INDEX, EXPLANATION)):
+            continue                  # preface, index, or a commentary (बालावबोध, टीका)
         sents = _sentences(book.light[s:e + 1]) or [""]
         k = Kruti(book.name, o.start_page, o.end_page, None, "", sents[0], sents[-1],
                   ["No verse numbers or heading - found by matching the Excel text"], (s, e),

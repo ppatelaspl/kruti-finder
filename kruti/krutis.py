@@ -3,13 +3,16 @@
 Devotional Kruti are numbered verse by verse (॥1॥ ... ॥7॥). A run of verse numbers that
 restarts at 1, or a heading naming a Kruti type (स्तवन, सज्झाय ...), marks a new Kruti.
 Each one is recorded with its title, first verse (Aadi Vakya), last verse (Ant Vakya) and
-pages. The same Kruti found in several books, places or scripts shares one group ID.
+pages. Preface, index and explanation text is blanked first (content.py), so it never
+becomes a Kruti or part of one. The same Kruti found in several books, places or scripts shares one group ID.
 """
+import bisect
 import re
 from dataclasses import dataclass
 
 from rapidfuzz import fuzz, process
 
+from .content import INDEX, PROSE, SEPARATOR, blank, non_kruti_spans
 from .normalize import key_only
 
 # How a verse ends differs from book to book. OCR often garbles the number (॥[॥, ...र...);
@@ -79,12 +82,14 @@ _SERIAL_REST = re.compile(r"\s*[।॥|\[(]?\s*[^\s\[\]()]{1,3}\s*[\])]\s*")  # 
 
 
 def _ends_with_type(key: str, type_key: str) -> bool:
-    """…लावणी, tolerating one OCR slip in longer type words (लावणुं)."""
+    """…लावणी, tolerating one OCR slip in longer type words (लावणुं). The slip may not
+    be in the first letter: "पुण्यमूर्तिः" ends like "आरती" but is no आरती."""
     if key.endswith(type_key):
         return True
     n = len(type_key)
-    return n >= 4 and len(key) >= n and max(
-        fuzz.ratio(key[-w:], type_key) for w in (n, n + 1)) >= 70
+    return n >= 4 and len(key) >= n and any(
+        key[-w:].startswith(type_key[0]) and fuzz.ratio(key[-w:], type_key) >= 70
+        for w in (n, n + 1))
 
 
 def _plausible_title(phrase: str) -> bool:
@@ -116,9 +121,12 @@ def _is_title(phrase: str, title_keys: list, name_keys: list, name_score: float,
         k, name_keys, scorer=fuzz.ratio, score_cutoff=name_score) is not None
 
 
-def _find_heading(text: str, base: int, title_keys, name_keys, name_score, restart=False):
+def _find_heading(text: str, base: int, title_keys, name_keys, name_score, restart=False,
+                  closes_verse=False):
     """First heading in text (the stretch between two verse marks). Returns
-    (start, end, title) in book offsets; end is just past the heading's punctuation."""
+    (start, end, title) in book offsets; end is just past the heading's punctuation.
+    closes_verse: a verse number follows the text, so a phrase running up to the end of
+    the text is the last line of a verse."""
     starts = [0] + [m.end() for m in _MARKER.finditer(text)] + \
              [i + 1 for i, c in enumerate(text) if c == "\n"]
     colophon = None          # "इति … स्तवनं समाप्तम् ॥" closes a Kruti: the next one follows
@@ -143,6 +151,8 @@ def _find_heading(text: str, base: int, title_keys, name_keys, name_score, resta
             continue
         if m.group(3) == "." and re.search(r"\d\s*$", m.group(2)):
             continue                          # "…विचार जी 1.": a verse number, not a heading
+        if closes_verse and not m.group(3):
+            continue                          # "…गतिर्भाविनीति॥2॥": the line ends a verse
         phrase = re.sub(r"^[\d\s.]+", "", m.group(2))                      # "8569 लावणी"
         # "सुपाश्वेनाथ नु [7]": a line holding only a name and a bracketed serial number
         # (often OCR-garbled: [छ], । 12]) is as strong a sign as verses restarting at 1
@@ -197,6 +207,9 @@ def _ordinal(word: str, ordinals) -> bool:
     return len(k) >= 3 and any(len(o) == len(k) and fuzz.ratio(k, o) >= 75 for o in ordinals)
 
 
+_SHRI = key_only("श्री")      # "श्री शान्ति …" opens a title; it is no garbled "ढाल"
+
+
 def _part_heading(piece: str, section_keys) -> bool:
     """"ढाळ ४", "॥ हाल त्रीनी ॥", "डुहाः-", "ढाल तेरहवीं -नारायणकी देशी": a part word first,
     on a heading-shaped piece - short, or with a colon/dash/tune note. A verse that just
@@ -207,7 +220,7 @@ def _part_heading(piece: str, section_keys) -> bool:
         return False
     first = key_only(words[0])
     if (len(words) >= 2 and len(piece) <= 40 and len(first) <= 3 and "," not in piece
-            and first not in getattr(section_keys, "kruti_words", ())
+            and first not in getattr(section_keys, "kruti_words", ()) and first != _SHRI
             and _ordinal(words[1], getattr(section_keys, "ordinals", ()))):
         return True                          # "हाश खीजीः-", "हार त्रीजी": OCR'd "ढाल बीजी"
     if key_only(words[0]) not in section_keys:
@@ -237,8 +250,9 @@ def _without_part_headings(body: str, section_keys) -> str:
 
 
 def _verse_blocks(light: str, title_keys: list, name_keys: list, name_score: float,
-                  pattern=_VERSE_MARK, section_keys=()):
+                  pattern=_VERSE_MARK, section_keys=(), barriers=()):
     """Split the book at headings first, then at verse numbers restarting at 1.
+    barriers: offsets (preface/index pages) that no Kruti runs across.
     Each block: {"marks": [(n, start, end)], "heading": (start, end, title) or None}."""
     blocks, current, heading, prev_end = [], [], None, 0
     section_open = False
@@ -261,6 +275,10 @@ def _verse_blocks(light: str, title_keys: list, name_keys: list, name_score: flo
             n = current[-1][0] + 1 if current else 1
         restart = n == 1 and bool(current) and current[-1][0] > 1
         segment = light[prev_end:m.start()]
+        i = bisect.bisect_right(barriers, prev_end)
+        if i < len(barriers) and barriers[i] < m.start():
+            close()                          # a preface/index page lies in between
+            restart = False
         before = re.split(r"[\n।॥]", segment)[-1]     # words just before this number
         # "ढाळ ४" / "दुहा" / "कलश": a part of the same Kruti, whose verses restart at 1
         own_part = bool(current) and bool(section_keys) and _section_break(before, section_keys)
@@ -269,8 +287,9 @@ def _verse_blocks(light: str, title_keys: list, name_keys: list, name_score: flo
         # a Kruti heading still wins ("172. …सज्झाय" followed by "ढाळ १"); inside a part a
         # restart alone does not vouch for a heading (it would take refrains for titles)
         head = _find_heading(segment, prev_end, title_keys, name_keys, name_score,
-                             restart and not in_part)
-        if head and head[2] and section_keys and _part_heading(head[2], section_keys):
+                             restart and not in_part, closes_verse=raw.isdigit())
+        if head and head[2] and section_keys and _part_heading(head[2], section_keys) and \
+                not any(key_only(head[2]).endswith(t) for t in title_keys):
             head = None                      # "हार त्रीजी ड--कळावती" is a part, not a Kruti
         if head:
             close()                         # the heading ends the previous Kruti
@@ -294,7 +313,7 @@ def _verse_blocks(light: str, title_keys: list, name_keys: list, name_score: flo
 
 
 def _clean(text: str) -> str:
-    return " ".join(text.split())
+    return " ".join(text.replace(SEPARATOR, " ").split())
 
 
 def _verse_count(marks) -> int:
@@ -357,10 +376,80 @@ def _vakya(sentence: str, first: bool) -> str:
     return clean
 
 
-def _short(sentence: str) -> str:
-    if len(sentence) <= _LONG_SENTENCE:
+_LONG_VERSE = 400
+# "( मालिनी-छन्दः )", "॥ एक दिन दासी दोडती-ए देशी ॥", "(संजम थी सुख पामिये, एहनी)",
+# "हरिगीत छंद.", "(गीतनी चाल)": the tune or metre a Kruti is sung in, printed above a verse
+_TUNE = re.compile(r"(देशी|देसी|एहनी|एहनो|चाल|छन्दः?|छंद|छन्द|रागः?|राग|रागेण|तर्ज)\W*$")
+# "॥ ऊँ नमोऽर्हद्भ्यः। ऐँ नमः॥", "श्रीवादागुरुदेवाय नमः": invocations opening a book or section
+_INVOCATION = re.compile(r"(नमः|नमो|नम:)\W*$")
+# the same note in front of the verse on its line: "(सिंहल नृप कहे चंदने-ए देशी) श्री संभव …",
+# or only its tail when the heading took the "(": "मालिनी-छन्दः ) सकलसुख…"
+_LEADING_NOTE = re.compile(r"\(?([^()]{0,80})\)\s*")
+
+
+def _is_note_line(line: str, title_keys, section_keys) -> bool:
+    """A line above (or between) verses that is not verse text: a serial number ("1.",
+    "૧."), a tune/metre note, a part heading (ढाल पहेली, कलश) or a Kruti title."""
+    s = line.strip().strip(" ।॥.-–:")
+    if _letters(s) < 3:
+        return True
+    if len(s) <= 70 and "," not in s and (s.startswith("(") or s.endswith(")") or _TUNE.search(s)):
+        return True
+    if section_keys and _part_heading(s, section_keys):
+        return True
+    core = re.sub(r"^\d{1,4}\s*[.)]\s*", "", s)
+    return len(s) <= 60 and not re.search(r"[,;]", s) and bool(title_keys) and \
+        any(_ends_with_type(key_only(core), t) for t in title_keys)
+
+
+def _verse_text(text: str, title_keys=(), section_keys=()) -> str:
+    """One verse (without its number) as a single line: note lines dropped and a leading
+    "(… देशी)" removed."""
+    lines = [ln for ln in text.split("\n") if ln.strip()
+             and not _is_note_line(ln, title_keys, section_keys)]
+    while lines and _INVOCATION.search(lines[0]) and "," not in lines[0]:
+        lines.pop(0)                 # "श्रीमहावीरस्वामिने नमः": the book's invocation
+    verse = _clean(" ".join(lines))
+    m = _LEADING_NOTE.match(verse)
+    while m and (verse.startswith("(") or _TUNE.search(m.group(1))):
+        verse = verse[m.end():]
+        m = _LEADING_NOTE.match(verse)
+    return verse.strip(_VAKYA_TRIM) if _letters(verse) >= 8 else ""
+
+
+def _inner_title(opening: str, title_keys):
+    """The last Kruti title line before the first verse ("श्री सिद्धाचलजी तीर्थ का
+    चैत्यवंदन" under the section heading "चैत्यवंदन संग्रह"): (offset in opening, title)
+    or None."""
+    found, pos = None, 0
+    for ln in opening.split("\n"):
+        s = re.sub(r"^\d{1,4}\s*[.)]\s*", "", ln.strip().strip(" ।॥.-–:"))
+        if s and len(s) <= 60 and not re.search(r"[,;]", s) and \
+                any(key_only(s).endswith(t) for t in title_keys):
+            found = (pos, s)
+        elif _letters(s) >= 8 and not _INVOCATION.search(s):
+            break                    # verse text begins
+        pos += len(ln) + 1
+    return found
+
+
+def _last_verse(light: str, marks) -> str:
+    """Text of the last verse: between the last two verse numbers. A refrain cue alone
+    ("स्वामी०") is not a verse; then the verse before it is taken too."""
+    for back in (2, 3):
+        if len(marks) < back:
+            break
+        start = marks[-back][2]
+        text = light[start:marks[-1][1]]
+        if _letters(text) >= 12:
+            return text
+    return ""
+
+
+def _short(sentence: str, limit: int = _LONG_VERSE) -> str:
+    if len(sentence) <= limit:
         return sentence
-    return sentence[:_LONG_SENTENCE].rsplit(" ", 1)[0] + " …"
+    return sentence[:limit].rsplit(" ", 1)[0] + " …"
 
 
 def _not_a_kruti(body, sents, marks, heading, light) -> bool:
@@ -405,32 +494,57 @@ def find_krutis(book, page_conf: dict, cfg, names=()) -> list:
                           [key_only(t) for t in cfg.get("part_ordinals", []) if key_only(t)],
                           title_keys)
     name_keys = [k for k in (key_only(n) for n in names if n) if len(k) >= 3]
-    pattern = verse_pattern(book.light, len(book.page_numbers))
-    for block in _verse_blocks(book.light, title_keys, name_keys, cfg["name_match_threshold"],
-                               pattern, section_keys):
+    # preface, index, explanations and notes are blanked: only Kruti text is split
+    if book.non_kruti is None:
+        book.non_kruti = non_kruti_spans(book)
+    light = blank(book.light, book.non_kruti)
+    pattern = verse_pattern(light, len(book.page_numbers))
+    barriers = sorted(s for s, _e, k in book.non_kruti if k in (PROSE, INDEX))
+    for block in _verse_blocks(light, title_keys, name_keys, cfg["name_match_threshold"],
+                               pattern, section_keys, barriers):
         marks, heading = block["marks"], block["heading"]
         first, last = marks[0], marks[-1]
         if heading:                         # a detected heading fixes where the Kruti starts
             block_start, title = heading[0], heading[2]
-            opening = book.light[heading[1]:first[2]]
+            opening = light[heading[1]:first[2]]
+            inner = _inner_title(opening, title_keys)
+            if inner:                       # a collection heading above the Kruti's own title
+                block_start, title = heading[1] + inner[0], inner[1]
         else:
-            block_start = max(prev_end, first[1] - cfg["max_opening_chars"])
-            while block_start < first[1] and book.light[block_start].isspace():
+            # the opening never reaches back across preface/index/explanation text
+            block_start = max(prev_end, first[1] - cfg["max_opening_chars"],
+                              max((e for _s, e, _k in book.non_kruti if e <= first[1]),
+                                  default=0))
+            while block_start < first[1] and light[block_start].isspace():
                 block_start += 1
-            title, opening = _split_title(book.light[block_start:first[2]], title_keys,
+            title, opening = _split_title(light[block_start:first[2]], title_keys,
                                           name_keys, cfg["name_match_threshold"])
         block_end = last[2]
+        # "॥ … स्तवन ॥⏎॥ … प्रारंभ ॥": heading lines between dandas, no verse number. Not a
+        # Kruti; left in place so the next Kruti finds them as its title
+        marks_text = [light[ms:me] for _n, ms, me in marks]
+        if not any(re.search(r"\d", t) for t in marks_text) and (
+                all("\n" in t for t in marks_text)       # each "mark" is ॥⏎॥ between lines
+                or not heading and _letters(light[block_start:block_end]) < 80):
+            continue
         prev_end = block_end
         if len(marks) < cfg["min_verses"] and not heading:
             continue
+        # title-page lines before the preface: stray dandas, no heading, no verse number
+        if not heading and barriers and block_end <= barriers[0] and \
+                not any(re.search(r"\d", light[ms:me]) for _n, ms, me in marks):
+            continue
 
-        body = opening + book.light[first[2]:block_end]      # the Kruti's text after its title
+        body = opening + light[first[2]:block_end]      # the Kruti's text after its title
         body = _without_part_headings(body, section_keys)
         sents = _sentences(body, raw=True)
         if not sents:
             continue                         # no text of its own (a colophon between marks)
-        aadi_full = _vakya(sents[0], True) if sents else ""
-        ant_full = _vakya(sents[-1], False) if sents else ""
+        # Aadi = the whole first verse, Ant = the whole last verse
+        first_verse = opening[:len(opening) - (first[2] - first[1])]     # without "॥1॥"
+        aadi_full = _verse_text(first_verse, title_keys, section_keys) or _vakya(sents[0], True)
+        ant_full = _verse_text(_last_verse(light, marks), title_keys, section_keys) \
+            or _vakya(sents[-1], False)
         aadi, ant = _short(aadi_full), _short(ant_full)
         verses = _verse_count(marks)
         sp, ep = book.page_of_light(block_start), book.page_of_light(block_end - 1)
@@ -438,15 +552,15 @@ def find_krutis(book, page_conf: dict, cfg, names=()) -> list:
         checks = []
         if not title:
             checks.append("No heading found - check where it starts")
-        if not sents or max(len(aadi_full), len(ant_full)) > _LONG_SENTENCE:
-            checks.append("Aadi/Ant is not one clear sentence")
-        if _not_a_kruti(body, sents, marks, heading, book.light):
+        if not sents or max(len(aadi_full), len(ant_full)) > _LONG_VERSE:
+            checks.append("Aadi/Ant is not one clear verse")
+        if _not_a_kruti(body, sents, marks, heading, light):
             continue                         # index/contents or preface/explanation prose
         if ep - sp + 1 > cfg["max_kruti_pages_check"]:
             checks.append(f"Spans {ep - sp + 1} pages - may hold several Kruti")
         if confs and min(confs) < cfg["low_ocr_confidence"]:
             checks.append("Low OCR quality - check the scan")
-        found.append(Kruti(book.name, sp, ep, verses, title, aadi, ant, checks,
+        found.append(Kruti(book.name, sp, ep, verses, _clean(title), aadi, ant, checks,
                            (block_start, block_end), book.printed_page(sp),
                            book.printed_page(ep)))
     return found

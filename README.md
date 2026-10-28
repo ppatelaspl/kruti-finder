@@ -20,14 +20,19 @@ The command-line version described below uses the same engine and gives identica
 ## How it works
 
 1. **Read each page.** If the PDF has a proper Unicode text layer it is used directly. If the page is a scan, or the text layer is garbage (old legacy Gujarati/Hindi fonts, broken conjuncts), the page is OCR'd. OCR results are cached, so a stopped or repeated run never OCRs the same page twice.
-2. **Clean up.** Running headers, footers and page numbers are removed, so they never leak into the Vakya text or break a Kruti that crosses a page.
-3. **Split into Kruti.** A new Kruti starts wherever verse numbers restart at ॥1॥, or at a heading ending in a Kruti-type word (स्तवन, सज्झाय, गीत, पद …; configurable in `title_keywords`). Numbers garbled by OCR (॥[॥) are inferred from the sequence. For each Kruti the tool records:
+2. **Clean up.** Running headers, footers, page numbers and footnotes (# पाठान्तर …) are removed, so they never leak into the Vakya text or break a Kruti that crosses a page.
+3. **Leave out what is not a Kruti.** A book also prints a preface, an editor's note, a biography, an index or contents list, a publisher's list, and often an explanation after every verse (व्याख्या, अर्थ, भावार्थ). None of it becomes a Kruti or part of one:
+   - **preface pages:** running prose - words like है, था, किया / छे, हतो, करवामां - in lines that wrap mid-sentence (verse lines end at a comma or danda). Before the book's first page of verses, a preface that quotes a few numbered verses is still a preface;
+   - **index / contents pages:** short lines with page or serial numbers, or under a heading such as अनुक्रमणिका, or a bare list of titles;
+   - **explanations between verses:** a paragraph opened by व्याख्या-, अर्थ:, भावार्थ … (OCR variants too); any stretch between two verse numbers that reads as prose; three or more wrapped prose lines. Verses the explanation quotes ("यतः-“… ॥2॥”") go with it;
+   - **notes:** the source note under a Kruti ("(खरतरगच्छ साहित्य कोश क्रमांक- 2592.)"), tune and metre lines ("( मालिनी-छन्दः )", "… -ए देशी"), invocation lines (… नमः).
+4. **Split into Kruti.** A new Kruti starts wherever verse numbers restart at ॥1॥, or at a heading ending in a Kruti-type word (स्तवन, सज्झाय, गीत, पद …; configurable in `title_keywords`). Numbers garbled by OCR (॥[॥) are inferred from the sequence. For each Kruti the tool records:
    - **Title:** the heading lines above verse 1;
-   - **Aadi Vakya:** the first verse;
-   - **Ant Vakya:** the last verse;
+   - **Aadi Vakya:** the whole first verse, without its number or tune/metre note;
+   - **Ant Vakya:** the whole last verse;
    - **pages** and **number of verses**.
-4. **Compare with the Excel.** Gujarati is converted to Devanagari and common spelling variants are treated as equal (ण/न, श/ष/स, ब/व, ी/ि …); the Excel's `#…#` markers and `{variant}` readings are ignored. Each Excel Kruti's Aadi Vakya and Ant Vakya are searched in the book with a fuzzy match, so OCR mistakes are tolerated (both must match ≥ 85%, in order, within 40 pages). A Kruti from the book that such a match covers gets the Excel's Kruti क्रमांक and name, and a *same script* or *other script* flag. An Excel Kruti matched in a book where no verse numbers split it out is still listed.
-5. **Group copies.** Rows matched to the same Excel Kruti share a Group ID; new Kruti join the group whose text is most alike, across scripts.
+5. **Compare with the Excel.** Gujarati is converted to Devanagari and common spelling variants are treated as equal (ण/न, श/ष/स, ब/व, ी/ि …); the Excel's `#…#` markers and `{variant}` readings are ignored. Each Excel Kruti's Aadi Vakya and Ant Vakya are searched in the book with a fuzzy match, so OCR mistakes are tolerated (both must match ≥ 85%, in order, within 40 pages). A Kruti from the book that such a match covers gets the Excel's Kruti क्रमांक and name, and a *same script* or *other script* flag. An Excel Kruti matched in a book where no verse numbers split it out is still listed.
+6. **Group copies.** Rows matched to the same Excel Kruti share a Group ID; new Kruti join the group whose text is most alike, across scripts.
 
 ## Command line: setup (one time)
 
@@ -60,14 +65,14 @@ One sheet, **Kruti Found**, one row per Kruti found in a book:
 | Group No., Copy | The same Kruti in several books, places or scripts shares a Group No. (1, 2, 3 … in order of first appearance); Copy says which of how many ("2 of 3"). Rows of a group sit together, shaded as one block. |
 | File Name, Book Name | The PDF file, and a readable book name (the PDF's title, or the file name without the library code and catalogue tags) |
 | Kruti क्रमांक, Kruti Name | From the Excel when matched; for new Kruti the name is the heading read from the book |
-| Aadi Vakya, Ant Vakya | The Kruti's first and last sentence, as printed in this book and in its own script (refrain cues and verse numbers are skipped) |
+| Aadi Vakya, Ant Vakya | The Kruti's whole first and last verse, as printed in this book and in its own script (verse numbers, tune/metre notes and part headings are left out) |
 | PDF Start/End Page | Page numbers in the PDF file |
 | Book Start/End Page | Page numbers printed in the book, read from its headers/footers (blank for front matter before page 1) |
 | No. of Verses | Verses in this copy (the book's running Kruti serial number is not counted) |
 | Script | Devanagari or Gujarati, as printed in this book |
 | In Excel? | Matched - same script / Matched - other script / New |
 | Match % | The weaker of the Aadi and Ant matches |
-| Check | OK, or why a reviewer should look: no heading found, Aadi/Ant not one clear sentence, looks like an index/list, spans many pages, low OCR quality |
+| Check | OK, or why a reviewer should look: no heading found, Aadi/Ant longer than one verse, looks like an index/list, spans many pages, low OCR quality |
 | Remarks | For the team (grey) |
 
 **Kruti boundaries.** Books mark Kruti in different ways; all of these are recognised:

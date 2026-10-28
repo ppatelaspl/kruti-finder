@@ -292,8 +292,9 @@ def test_stray_line_end_numbers_do_not_split_a_normal_book():
     assert [k.title for k in _krutis(text)] == ["शांतिनाथ स्तवन"]
 
 
-def test_long_verse_gives_its_first_and_last_line():
-    # verses punctuated only at the verse end: Aadi = first line, Ant = last line
+def test_long_verse_is_taken_whole():
+    # verses punctuated only at the verse end: Aadi/Ant are still the whole first/last
+    # verse, as the team's Excel writes them
     text = ("आदिनाथ स्तवन.\n"
             "प्रथम जिनेश्वर प्रणमीए, जास सुगंधी रे काय, कल्पवेली परे विस्तरी,\n"
             "नाभिराया कुल मंडणो, मरुदेवी माता मल्हार, वंछित फल दातार जिणंदा,\n"
@@ -304,8 +305,10 @@ def test_long_verse_gives_its_first_and_last_line():
             "समकित दायक साहिबा, मुज मन मंदिर वास,\n"
             "कीर्ति सदा जग विस्तरी, गावे मुनि गुणवंत ॥2॥")
     k = _krutis(text)[0]
-    assert k.aadi == "प्रथम जिनेश्वर प्रणमीए, जास सुगंधी रे काय, कल्पवेली परे विस्तरी"
-    assert k.ant == "कीर्ति सदा जग विस्तरी, गावे मुनि गुणवंत"
+    assert k.aadi.startswith("प्रथम जिनेश्वर प्रणमीए, जास सुगंधी रे काय, कल्पवेली परे विस्तरी, ")
+    assert k.aadi.endswith("केवल ज्ञान दिवाकर स्वामी, शिवसुख संपत्ति दाय")
+    assert k.ant.startswith("मोहन कहे प्रभु सेवतां")
+    assert k.ant.endswith("कीर्ति सदा जग विस्तरी, गावे मुनि गुणवंत")
     assert not k.checks
 
 
@@ -515,3 +518,186 @@ def test_type_word_alone_with_comma():
     text = ("भवि जन वंदो भावसुं, टालणुहार ॥ 4॥ सोहग टालणुहार ॥ 5॥\nलावणी,\n"
             "॥ करूं अरज एक जिनपति, कंत नहीं डरते ॥ 1 ॥ गाम धुलेवे वंश जालमे, प्रभु धरती ॥ 2 ॥")
     assert [k.title for k in _krutis(text)][-1] == "लावणी"
+
+
+# ---- text that is not a Kruti: explanations, headers, footnotes, notes, preface, index
+# (real OCR from the first test round: B000505, B002637, B052034)
+
+def test_explanation_after_each_verse_is_left_out():
+    # B000505 p.19: every verse is followed by its "व्याख्या-" paragraph, numbered like it
+    text = ("॥ श्री सीमंधर स्वामिनी विनतिरुप स्तवन ॥\n"
+            "स्वामी सीमंधर विनति, सांभळो माहरी देवरे ।\nताहरी आण हुं शिर धरुं, आदरुं ताहरी सेवरे ॥ १॥\n"
+            "व्याख्या-हे श्री सीमंधर स्वामी, तमे माहरी विनति सांभळो, देव के० हे देवाधिदेव\n"
+            "हुं ताहरी आज्ञा शिर धरुं छुं, तथा ताहरी सेवाने आदरुं छुं. सेवकनी\n"
+            "विनति स्वामीए सांभळवीज. ॥१॥\n"
+            "कुगुरुनी वासना पासमां, हरिण परे जे पड्या लोकरे ।\nतेहने शरण तुज विण नहीं, टळवळे बापडा फोकरे ॥२॥\n"
+            "व्याख्या-कुगुरुनी वासना के० जूठा उपदेशनी धारणा ते रूपी पाशमां हरिणनी\n"
+            "पेरे जे लोक पड्या छे, पोते मोह मूके नहीं एम सर्व मोहे मुंझाइ रह्या छे, ते\n"
+            "दृष्टिरागी लोकने तुज विना शरण नथी. ॥ २ ॥\n"
+            "ज्ञान दर्शन चरण गुण विना, जे करावे कुलाचाररे ।\nलूटे तेणे जन देखतां, क्यां करे लोक पोकाररे ॥३॥\n")
+    ks = _krutis(text)
+    assert len(ks) == 1
+    k = ks[0]
+    assert k.aadi.startswith("स्वामी सीमंधर विनति, सांभळो माहरी देवरे")
+    assert k.ant.startswith("ज्ञान दर्शन चरण गुण विना") and k.ant.endswith("लोक पोकाररे")
+    assert "व्याख्या" not in k.aadi + k.ant and "के०" not in k.aadi + k.ant
+
+
+def test_running_header_with_page_number_is_not_a_title():
+    # B002637 p.42-43: "यवीयराय सूत्र । 11" / "12 अभय रत्नसार ।" head the pages; the header
+    # names the Kruti on the page but is not where it starts
+    pages = []
+    for n in range(40, 46):
+        head = f"{n - 31} अभय रत्नसार ।" if n % 2 == 0 else f"जयवीयराय सूत्र । {n - 31}"
+        pages.append(PageText(n, "ocr", 90.0, f"{head}\nजय वीयराय जगगुरु, होउ ममं तुह पभावओ भयवं ॥ 1 ॥\n"
+                                               f"भव-निव्वेओ मग्गा-णुसारिया इट्ठफल-सिद्धी ॥ 2 ॥\n"))
+    book = Book.from_pages("b.pdf", pages)
+    titles = [k.title for k in find_krutis(book, {}, merged(None))]
+    assert not any("रत्नसार" in t or "सूत्र" in t for t in titles), titles
+
+
+def test_footnote_is_not_a_title():
+    # B002637 p.39: "# पाठान्तर "संपद्"" under the last verse became a Kruti name
+    text = ("जं किंचि सूत्र ।\nजं किंचि नाम तित्थं, सग्गे पायालि माणुसे लोए ।\n"
+            "जाई जिण-बिंबाइं, ताईं सव्वाइं वंदामि ॥ 1 ॥\nसव्वाइं वंदामि पुनः, भवे भवे तुह चलणाणं ॥ 2 ॥\n"
+            "# पाठान्तर \"संपद्\" ।")
+    ks = _krutis(text)
+    assert [k.title for k in ks] == ["जं किंचि सूत्र"]
+    assert "पाठान्तर" not in ks[0].ant
+
+
+def test_metre_note_and_source_note_are_not_aadi_or_ant():
+    # B052034 p.32, 50: "( मालिनी-छन्दः )" above the first verse, "(खरतरगच्छ साहित्य कोश
+    # क्रमांक- 3553.)" under the last one
+    text = ("2. श्रीअजितनाथजिनेन्द्र-चैत्यवन्दनम्\n( मालिनी-छन्दः )\n"
+            "सकलसुखसमृद्धिर्यस्य पादारविन्दे,\nविलसति गुणरक्ता भक्तराजीव नित्यम्।\n"
+            "त्रिभुवनजनमान्यः शान्तमुद्राऽभिरामः,\nस जयति जिनराजस्तुङ्ग तारङ्गतीर्थे॥1॥\n"
+            "नरपतिजितशत्रुर्वंशरत्नाकरेन्दुः,\nसुरपति-यतिमुख्यैर्भक्तिदक्षैः समर्च्यः।\n"
+            "दिनपतिरिव लोकेऽपास्तमोहान्धकारो,\nजिनपतिरजितेशः पातु मां पुण्यमूर्तिः ॥2॥\n"
+            "(खरतरगच्छ साहित्य कोश क्रमांक- 3553.)\n")
+    k = _krutis(text)[0]
+    assert k.aadi.startswith("सकलसुखसमृद्धिर्यस्य पादारविन्दे")
+    assert k.aadi.endswith("तारङ्गतीर्थे")
+    assert k.ant.startswith("नरपतिजितशत्रुर्वंशरत्नाकरेन्दुः") and "कोश" not in k.ant
+
+
+def test_tune_note_in_front_of_first_verse_is_dropped():
+    # B052034 p.88: "(सिंहल नृप कहे चंदने-ए देशी) श्री संभव जिनरायजी, …"
+    text = ("श्री संभवनाथ जिनेश्वर स्तवन\n(सिंहल नृप कहे चंदने-ए देशी) श्री संभव जिनरायजी, साहिब मारा\n"
+            "सेना नंद सुजाण हो ॥1॥\nराज जितारि कुल दिनमणि, साहिब मारा सोहे सुर नर भाण हो ॥2॥")
+    assert _krutis(text)[0].aadi.startswith("श्री संभव जिनरायजी, साहिब मारा")
+
+
+def test_preface_pages_quoting_verses_are_left_out():
+    # B052034 p.15-16: the preface quotes a numbered line of a stavan; no Kruti from it
+    prose = ("वे भक्त हैं तो कवि की रसिकता भी उनमें भरपूर है। अपने रसिक अनुभव को मर्यादा के साथ\n"
+             "प्रकृति-वर्णन द्वारा अभिव्यक्त करते हैं। नेमिनाथ परमात्मा के एक स्तवन में प्रकृति\n"
+             "की लीला इस प्रकार प्रकट हुई है। उनके इन गीतों में हृदय में कल-कल उमड़ते भावों की\n"
+             "सहज प्रस्तुति है। इन गीतों में इतिहास का समावेश भी उन्होंने बखूबी किया है और\n"
+             "इन स्तवनों से उनकी विहार-यात्रा का वृत्तान्त भी सहज उपलब्ध हो जाता है। गच्छ में\n"
+             "व्याप्त मतभेदों के कारण विधि-विधानों में मतभेद चल रहा था, उन्होंने उसे दूर किया।\n")
+    quote = "समय वसंत प्रगट भयो सुन्दर, विकसित कुसुम अपार ॥ 1 ॥\nकोयल कलरव करत मधुर धुनि, भमर करत झंकार ॥ 2 ॥\n"
+    kruti = ("1.\nश्री सिद्धाचलजी तीर्थ का चैत्यवंदन\n"
+             "जय जय नाभि नरिन्द नन्द, सिद्धाचल मंडण,\nजय जय प्रथम जिणंद चन्द, भव दुःख विहण्डण॥1॥\n"
+             "जय जय साधु सुरिंद वृन्द, वंदिय परमेसर,\nजय जय जगदानन्द कन्द, श्री रिषभ जिणेसर॥2॥\n"
+             "अमृतसम जिन धर्मनों ए, दायक जगमें गाळ,\nतुझ पद पंकज प्रीतिधर, निशदिन नमत कल्याण॥3॥\n")
+    ks = _book_krutis(prose * 2, prose + quote + prose, prose * 2, kruti, kruti)
+    assert ks and all(k.start_page >= 4 for k in ks), [(k.start_page, k.aadi[:30]) for k in ks]
+
+
+def test_index_page_with_ocr_garbled_heading_is_left_out():
+    # B000505 p.18: "विषयाहुक्रमणिका" (OCR of विषयानुक्रमणिका) over a publisher's book list
+    index = ("(60) 'विषयाहुक्रमणिका.\nमहावीर जैनसभा तरफथी प्रसिद्ध थयेला ग्रंथो लीस्ट,\n"
+             "1 बारव्रतनी टीप (गुजराती) रु. 0-1-0\n2 जैननुं स्तवन (गुजराती) रु. 0-2-0\n"
+             "3 बृहत्शान्ति स्तव वृत्ति सहित रु. 0-1-0\n4 अंगुलसत्तरी भाषांतर रु. 0-2-0\n"
+             "5 बार व्रतनी टीप (हिंदी) भेट\n6 षन्नरेन्द्र कथा संस्कृत रु. 0-8-0 ॥ 1 ॥\n")
+    assert _krutis(index) == []
+
+
+def test_verse_line_ending_like_a_type_word_is_not_a_title():
+    # B052034 p.56: "…गतिर्भाविनीति॥2॥" ends like "विनती" and "…पुण्यमूर्तिः" like "आरती";
+    # a line closed by a verse number is the end of a verse, and the Kruti runs on
+    text = ("3. श्रीविमलनाथजिनेन्द्र-चैत्यवन्दनम्\n( मन्दाक्रान्ता-छन्दः )\n"
+            "संसारेऽस्मिन् महति महिमाऽमेयमानन्दिरूपं,\nत्वां सर्वज्ञं सकलसुकृतिश्रेणिसंसेव्यमानम्॥1॥\n"
+            "ये तु स्वामिन! कुमतिपिहितस्फारसद्बोधमूढाः,\nमन्ये तेषां गतशुभदुशां का गतिर्भाविनीति॥2॥\n"
+            "दिनपतिरिव लोकेऽपास्तमोहान्धकारो,\nजिनपतिरजितेशः पातु मां पुण्यमूर्तिः ॥3॥\n")
+    ks = _krutis(text)
+    assert [k.title for k in ks] == ["श्रीविमलनाथजिनेन्द्र-चैत्यवन्दनम्"]
+    assert ks[0].verses == 3 and ks[0].ant.startswith("दिनपतिरिव")
+
+
+def test_section_heading_and_invocation_before_the_first_kruti():
+    # B052034 p.30-32: a section heading, the book's invocation lines, then the Kruti; the
+    # second Kruti's "श्री शान्ति …" is a title, not a garbled "ढाल सातमी"
+    text = ("चेत्यवंदन संग्रह\n॥ ऊँ नमोऽर्हद्भ्यः। ऐँ नमः॥\nश्रीमहावीरस्वामिने नमः\nश्रीवादागुरुदेवाय नमः\n"
+            "1.\nश्री सिद्धाचलजी तीर्थ का चैत्यवंदन\n"
+            "जय जय नाभि नरिन्द नन्द, सिद्धाचल मंडण,\nजय जय प्रथम जिणंद चन्द, भव दुःख विहण्डण॥1॥\n"
+            "अमृतसम जिन धर्मनों ए, दायक जगमें गाळ,\nतुझ पद पंकज प्रीतिधर, निशदिन नमत कल्याण॥2॥\n"
+            "2.\nश्री शान्ति जिन चेत्यवंदन\nसोलमा जिनवर शान्तिनाथ, सेवो शिरनामी,\n"
+            "कंचन वरण शरीर कांति, अतिशय अभिरामी॥1॥\nजगमां अमृत जेहवी ए, जास अखंडित आण,\n"
+            "एक मने आराधतां, लिए जोडी कल्याण॥2॥\n")
+    ks = _krutis(text)
+    assert [k.title for k in ks] == ["श्री सिद्धाचलजी तीर्थ का चैत्यवंदन", "श्री शान्ति जिन चेत्यवंदन"]
+    assert ks[0].aadi.startswith("जय जय नाभि नरिन्द नन्द") and "नमः" not in ks[0].aadi
+    assert ks[0].ant.startswith("अमृतसम जिन धर्मनों ए")
+
+
+# ---- learned from books the rules were not tuned on (B007712, B018723, B021879, B035022)
+
+def test_lavani_set_as_running_text_is_not_an_explanation():
+    # B007712 p.27: verse printed as running lines, words hyphenated across lines, Hindi
+    # words (मेरी, मुझे, नहीं) and refrain cues; its verse numbers sit inside the run
+    text = ("सती राजुलनी लावणी.\n"
+            "पिया परबतमें दुःख ममता, महेल मंदिर मुझे नहीं गमता ॥ श्याम खडी, मेरी जान श्याम\n"
+            "खडी, श्याम खडी खाय गमक ॥ सतीन ॥1॥ सती रथ संजम, मेरी जान सती रथ संजम, सती रथ\n"
+            "संजममे बेडी ॥ भ्रमना अंतरका मेटी ॥ सती सब सेन, मेरी जान सती सब सेना, सती सब\n"
+            "सोना तज देती ॥ जगतमें राखी नहिं रेती ॥ करी जुग बीच, मेरी जान करी जुग बीच, क्षमा\n"
+            "खेती ॥ सती बस किया अपने मनकुं ॥ सतीन ॥ 2 ॥ साज शिवपुरका, मेरी जान साज शिवपुरका ॥ 3 ॥\n")
+    ks = _krutis(text)
+    assert len(ks) == 1 and ks[0].verses == 3
+    assert ks[0].aadi.startswith("पिया परबतमें दुःख ममता")
+
+
+def test_verse_lines_ending_in_dots_are_not_prose():
+    # B018723 p.66: a sajjhay whose lines end "…" and "… हो राज." (no dandas)
+    lines = ["गर्भ रह्यो ते दिवसथी तेने, चिंता थई चारे कोर. हो राज.",
+             "माता-पिताए पण तेने कढी, प्रीती हती जेनी गाढी...",
+             "करम तणी गति न्यारी जाणो, ते तो छे सहुने भारी...",
+             "शीयल पाळी सुख पामी ते, जगमां कीर्ति वधारी...",
+             "जे नर नारी भावे गाशे, ते पामे भवपार. हो राज.",
+             "पुण्य उदये सुख संपत्ति, रूप कळा भंडार...",
+             "कहे मुनि गुण गावो एहना, थाशे जय जयकार. हो राज."]
+    page = "\n".join(lines * 3)
+    from kruti.content import page_kind
+    assert page_kind(page) is None
+
+
+def test_short_verse_lines_without_dandas_are_not_an_index():
+    # B021879 p.409, B035022 p.193: short verse lines whose dandas OCR lost, ending "रे",
+    # "हु०" (OCR'd "हु 0")
+    page = "\n".join(["तजी रमणी गढ राज्यनी हु 0", "पुर अंतेउर तेम रे हु°", "मोह कुंभी मद गालवा, हु 0",
+                      "प्रगटयो मृगपति जग रे हु0", "देई दान संवत्सरी हु 0", "ओच्छव कर्यो इंद्र रे हु0",
+                      "मुनिसुव्रत-नमि अंतरे हु 0", "दीक्षा लीधी जिणंद रे हु0", "विनयथी गुण वाधे घणा रे",
+                      "धर्मनुं मूल विनय कह्यो रे", "विनयथी रीझे देवता रे", "वाचक शमविजय कही रे"])
+    from kruti.content import page_kind
+    assert page_kind(page) is None
+
+
+def test_list_of_first_lines_is_an_index():
+    # B007712 p.4: "प्रत्येक लावणीनुं प्रथमपद" over a list of each लावणीनी first line
+    page = ("आंक.\nर4\nर्\nप\n। प्रत्येक लावणीनुं प्रथमपद.\nतजो काम मद भून् लाल जिनवर गुणमातां....\n"
+            "अगम पंथ जानां इ नडे अगम ...\nसुगुण आस मत करे कलेसी कुमति संग छायो...\n"
+            "सजन समजावो अपने मनकुं रे, सज0...\nमें अबला हुं अजाण लाल तेरे दरसनकी भूखी0.\n"
+            "श्री आदिनाथ निर्वाणी नमुं एसे ध्यानी. ...\nश्री शंखेश्वर पास जिनेसर अरज करुं. ...\n")
+    from kruti.content import INDEX, page_kind
+    assert page_kind(page) == INDEX
+
+
+def test_explanation_word_after_the_verse_number_it_explains():
+    # B000505 p.25: "॥ 1 ॥ ” अर्थृ-अथवा यतिनो आत्मा …" - the explanation (OCR'd "अर्थ")
+    # starts on the line of the verse number it explains
+    from kruti.content import _explanation_start
+    assert _explanation_start("॥ 1 ॥ ” अर्थृ-अथवा यतिनो आत्मान सम्यक्त्व दशन निमे ज्ञान")
+    assert _explanation_start("व्याख्या-हे श्री सीमंधर स्वामी, तमे माहरी विनति सांभळो")
+    assert not _explanation_start("॥ 2 ॥ सेत्रुंजा गिरनार जीव तुम, अष्टापद जातां")
+    assert not _explanation_start("समुद्यताभिः श्रीवर्द्धमानजिनदत्तमतप्रवृत्तान्")
