@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples/B021879_sazzay_sagar_part_01_034187_hr6.pdf"
 PAGES = (373, 377)
 KRUTIS = [

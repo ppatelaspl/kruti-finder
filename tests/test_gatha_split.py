@@ -305,3 +305,18 @@ def test_refrain_cue_after_a_semicolon_does_not_end_the_gatha():
     g = gathas([L("होरी", "heading")] + rows)
     assert [x.no for x in g] == ["1", "2", "3"]
     assert g[1].first == "पद 2 पहली पंक्ति सिरदार; ऐसें०।"
+
+
+def test_the_same_garbled_number_on_every_stanza_is_renumbered():
+    rows = []
+    for i in range(1, 4):
+        rows += [L(f"पद {i} पहली पंक्ति ;"), L(f"पद {i} दूसरी पंक्ति."), L("... हो साहिब ससनेहा. ॥9॥")]
+    g = gathas([L("स्तवन", "heading")] + rows)
+    assert [x.no for x in g] == ["1", "2", "3"]
+
+
+def test_tune_line_after_a_finished_gatha_starts_a_new_kruti():
+    lines = numbered(3) + [L("(राग - शत्रुंजय मंडन ऋषभ जिणंद दयाल.)", "tune")] + numbered(3, "स्तुति")
+    lines[7:] = [L(x.text.replace("॥1॥", "॥9॥")) if "॥1॥" in x.text else x for x in lines[7:]]
+    ks = split_gathas([L("स्तवन", "heading")] + lines, CFG)
+    assert [len(k.gathas) for k in ks] == [3, 3]

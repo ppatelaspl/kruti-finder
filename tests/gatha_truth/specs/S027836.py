@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples/S027836_chaityavandan_parvamala_003634_h_r.pdf"
 PAGES = (27, 31)
 # Numbers after dots (…५…); OCR drops several of them (page 31).

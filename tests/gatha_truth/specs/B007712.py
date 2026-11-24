@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples/B007712_Jain-lavani.pdf"
 PAGES = (50, 53)
 # Gathas run on through wrapped lines; each ends mid-line at "॥ n ॥". A gatha's first

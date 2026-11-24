@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples/S037822_Jay_Jay_Parshwa_Jinanda-Part-1.pdf"
 PAGES = (167, 171)
 KRUTIS = [

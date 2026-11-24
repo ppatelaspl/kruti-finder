@@ -364,3 +364,43 @@ def test_hyphenated_compound_is_not_an_explanation_opener():
     op = explanation_opener(CFG)
     assert not op.match("अर्थ-बोध के लिये बुद्धि दौड़ाने का अवसर")
     assert op.match("अर्थ--वरी केटलाक एम बोले छे") and op.match("भावार्थ- हे प्रभु") and op.match("अर्थ: हे")
+
+
+# ---- round 2, S037822 (modern print: numbers after a full stop, footnotes)
+def test_number_after_a_full_stop_at_line_end_is_a_mark():
+    rows = [("जय मंगलकारण, तारण त्रिभुवन रंग,", 90, 280), ("जिनवंदन भंजन, कर्मतरु डांग. २", 90, 290),
+            ("सुखदायक नायक, विजयसिह गुरु जेह,", 90, 280), ("तेहना शिष्य बोले गजविजय वर देह. ४", 90, 290),
+            ("... हो साहिब ससनेहा. 9", 230, 330)]
+    lines, _ = classify_book([page(1, rows)], CFG)
+    assert [[n for _, n in t.marks] for t in lines] == [[], [2], [], [4], [9]]
+
+
+def test_footnote_line_is_a_note():
+    for t in ("१. विनति. २. कामदेव ર. चन्द्र. ૪. उल्लसे ५. कमल की पांखडी", "पाठभेद 9. ઝગ. २. ઝચ્છાર"):
+        assert kind_of([page(1, VERSES + [(t, 60, 340)])], t) == "note", t
+
+
+def test_ornament_framed_centred_line_is_a_heading():
+    t = "€ आंख मारी उघडे त्यां ॐ"
+    rows = [(t, 140, 290), ("आंख मारी उघड त्यां शंखेश्वर देखुं,", 140, 300),
+            ("मंदिरमां वेठा मारा पारसनाथ देखुं,", 140, 300), ("धन्य धन्य जीवन मारु कृपा अनी वेच्युं... १", 120, 330)]
+    assert kind_of([page(1, PROSE + rows)], t) == "heading"
+
+
+# ---- round 2, B007712 (run-on lavani: refrains between dandas inside the lines)
+def test_adjacent_marks_keep_the_last_number():
+    t = "એટ દિયા હે, ભક્તિસે નાહાયા ॥ ३१० ॥ ૧ ॥ સુરતરકી"
+    lines, _ = classify_book([page(1, [(t, 60, 360)])], CFG)
+    assert [n for _, n in lines[0].marks] == [1]
+
+
+def test_zero_is_not_a_verse_number():
+    t = "જાણુ, જપો! જિનવરરે | ०० ॥ એ અચલ બિરાજે દેવ, દરસ"
+    lines, _ = classify_book([page(1, [(t, 60, 360)])], CFG)
+    assert all(n not in (0,) for _, n in lines[0].marks)
+
+
+def test_full_width_line_with_inner_double_dandas_is_verse():
+    rows = [("મૈ રહ્યો વિષય ભર પૂર, ગરવર્મે गधा ॥ ગર” ॥ મેં બાત હુઓ હે-", 60, 360),
+            ("રાન, ०८०२ જીગ ધંધા ॥ મેં રુચુર્‌ मेया જેર, જોગી ઓર જંદા |", 60, 360)]
+    assert [k for _, k in kinds([page(1, rows + rows)])] == ["verse"] * 4

@@ -157,6 +157,12 @@ def _units(lines, cfg) -> list:
                     cur.items.append(("prose",))
             title_open = False
             continue
+        if t.kind == "tune" and not title_open and pending_start == len(cur.items) and any(
+                isinstance(x, _Piece) for x in cur.items) and cur.items[-1] != ("prose",) and not (
+                isinstance(cur.items[-1], tuple) and cur.items[-1][0] == "part"):
+            close()                     # a tune line after a finished gatha: the next Kruti,
+            pending_start = 0           # printed without a title
+            continue
         if t.kind != "verse":
             continue                                   # tune, note, furniture
         title_open = False
@@ -217,8 +223,8 @@ def _fix_numbers(raw: list) -> list:
         elif n == expected:
             out.append((n, False))
         elif prev == 0:                       # a part's first number: 1, unless the book
-            misread = nxt is not None and nxt <= 3 and n > nxt   # starts later on purpose
-            out.append((nxt - 1, True) if misread else (n, False))
+            misread = nxt is not None and (nxt <= 3 and n > nxt or nxt == n)   # starts later
+            out.append((max(1, nxt - 1) if nxt != n else 1, True) if misread else (n, False))
         elif nxt is not None and nxt == expected + 1 or n > expected + 3 or n < expected:
             out.append((expected, True))
         else:

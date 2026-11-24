@@ -105,6 +105,8 @@ _END_NUMBER_DOT = re.compile(r"(?:(?<=\S\s)|(?<=\s\.))(\d{1,3})\s*\.?\s*$")
 _END_GARBLED = re.compile(r"0\s+[रपछ]\s*\.?\s*$")
 
 
+_AFTER_STOP_NUMBER = re.compile(r"[^\s\d.।॥;][.।॥;]\s*(\d{1,3})\s*\.?\s*$")
+_FOOTNOTES = re.compile(r"(?:^|\s)\d{1,2}\.\s*[^\s\d]")
 _NUM_DANDA = re.compile(r"(?:(?<=\s)|^)(\d{1,3})\s*[।॥]+")      # "४।।": ॥४॥ missing its first ॥
 _DANDA_NUM = re.compile(r"[।॥]+\s*(\d{1,3})\s*[।॥]+")              # "।।३॥": a number in doubled dandas
 
@@ -119,6 +121,10 @@ def _marks(pattern, text: str) -> list:
             for e in inside:
                 del found[e]
             found[m.end()] = int(m.group(1))
+    if not found:                         # "… डांग. २": a number right after a sentence end
+        m = _AFTER_STOP_NUMBER.search(mt)
+        if m:
+            found[m.end()] = int(m.group(1))
     if _STYLES["line_num"] in pattern.pattern and not found:
         m = _END_NUMBER_DOT.search(mt)
         if m:
@@ -128,7 +134,15 @@ def _marks(pattern, text: str) -> list:
     for m in _REFRAIN_MARK.finditer(mt):
         if not any(m.start() <= e <= m.end() for e in found):
             found[m.end()] = int(m.group(1))
-    return sorted(found.items())
+    marks = [(e, None if n == 0 else n) for e, n in sorted(found.items())]   # ०० is a cue
+    # "॥ ३१० ॥ ૧ ॥": a refrain cue read as a number right before the verse number
+    keep = []
+    for e, n in marks:
+        if keep and n is not None and keep[-1][1] is not None and e - keep[-1][0] <= 6 \
+                and not re.search(r"[^\W\d_]", re.sub(r"[।॥\d\s]", "", mt[keep[-1][0]:e])):
+            keep.pop()
+        keep.append((e, n))
+    return keep
 
 
 def _number(m) -> int | None:
@@ -302,10 +316,13 @@ def _is_tune(light: str, cfg) -> bool:
 
 
 def _is_note(light: str, cfg) -> bool:
-    """"खरतरगच्छ साहित्य कोश क्रमांक- 2592", "पाठभेद 1. …": a source or variant note."""
+    """"खरतरगच्छ साहित्य कोश क्रमांक- 2592", "पाठभेद 1. …": a source or variant note;
+    "१. विनति. २. कामदेव …": footnotes glossing words of the verses above."""
     keys = {key_only(w) for w in cfg["note_words"]}
     words = _words(re.sub(r"[-–—:]", " ", light))
-    return len(words) <= 10 and any(key_only(w) in keys for w in words)
+    if len(words) <= 10 and any(key_only(w) in keys for w in words):
+        return True
+    return len(_FOOTNOTES.findall(light)) >= 2 and not re.search(r"[,;]", light)
 
 
 def _debris(light: str, conf: float, cfg) -> bool:
@@ -335,6 +352,8 @@ def _verse_score(t: TLine, cfg) -> int:
         score += 2
     if REFRAIN_AFTER_DOTS.search(t.light):
         score += 2
+    if re.search(r"॥\s*\S", s):
+        score += 3                      # a ॥ inside the line: run-on gathas and refrains
     words = {key_only(w) for w in cfg["prose_words"]}
     cut = [m.start() / max(1, len(s)) for m in re.finditer(r"[,;]", s)]
     if any(0.25 <= c <= 0.75 for c in cut) and not any(key_only(w) in words for w in _words(s)):
@@ -361,7 +380,7 @@ def _first_pass(lines, cfg, title_keys, section_keys):
             t.kind = "tune"
         elif not t.marks and _debris(light, t.conf, cfg):
             t.kind = "furniture"                 # an ornament, border or frame read as letters
-        elif (_BRACKETED.match(light) or _is_note(light, cfg)) and not t.marks:
+        elif (_BRACKETED.match(light) and not t.marks) or _is_note(light, cfg):
             t.kind = "note"
         elif _heading_shape(light, title_keys, t, cfg):
             t.kind = "heading"
@@ -370,6 +389,8 @@ def _first_pass(lines, cfg, title_keys, section_keys):
 
 
 _SERIAL_ONLY = re.compile(r"^[\s।॥|`'\"]*[(\[]\s*[\dA-Za-z\u0900-\u0aff]{1,3}\s*[)\]][\s।॥|.]*$")
+_ORNAMENT = "€©ॐ®✽❀❁✿*>«»~"
+_FRAMED = re.compile(rf"^\s*[{_ORNAMENT}`'\"]+\s*\S.*\S\s*[{_ORNAMENT}]+\s*$|^\s*[{_ORNAMENT}]+\s*\S.*$|^.*\S\s*[{_ORNAMENT}]+\s*$")
 _QUOTED = re.compile(r"[।॥]\s*[”\"’]")
 _SERIAL_START = re.compile(r"^[\s।॥]*(\(\s*\S{1,3}\s*\)|\d{1,4}\s*[.)]|\d{1,4}\s)\s*")
 
@@ -402,6 +423,8 @@ def _heading_shape(light: str, title_keys, t: TLine, cfg) -> bool:
         return True
     words = phrase.split()
     centred = t.indent >= 0.08 and abs(t.indent + t.fill / 2 - 0.5) < 0.12
+    if centred and len(words) <= 8 and _FRAMED.match(t.text) and not re.search(r"[,;।॥]", phrase):
+        return True                     # "€ आंख मारी उघडे त्यां ॐ": a title between ornaments
     return centred and len(words) <= 10 and any(key_only(w) in title_keys for w in words)
 
 
