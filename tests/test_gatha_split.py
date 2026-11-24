@@ -343,3 +343,19 @@ def test_garbled_marks_between_consecutive_numbers_are_still_pruned():
         rows += [L(f"પદ {i} ક રે; ર"), L(f"પદ {i} ખ રે. ॥{i}॥")]     # "ર" after a half-line ;
     g = gathas([L("સજઝાય", "heading")] + rows)
     assert [x.no for x in g] == ["1", "2", "3"]
+
+
+def test_tune_line_after_an_unfinished_last_gatha_still_starts_a_new_kruti():
+    lines = numbered(3) + [L("પદ 4 ક,"), L("પદ 4 ખ. શ્રીબ પ"), L("(રાગ શાંતિજીનેશ્વર સાહિબા રે)", "tune")]
+    lines += numbered(3, "બીજું")
+    ks = split_gathas([L("સ્તવન", "heading")] + lines, CFG)
+    assert [len(k.gathas) for k in ks] == [4, 3]
+    assert ks[0].gathas[-1].first == "પદ 4 ક,"
+
+
+def test_unnumbered_two_line_gathas_ending_in_a_full_stop():
+    rows = []
+    for i in "કખગઘ":
+        rows += [L(f"શ્રી શ્રેયાંસ જિનવર {i} સાંભળો, એક મોરી અરદાસ,"), L(f"ઇણ ભવે જગમાં {i} દીઠો નહિ, વિલાસ.")]
+    g = gathas([L("(રાગ શાંતિજીનેશ્વર સાહિબા રે)", "heading")] + rows)
+    assert len(g) == 4 and all(x.how == "No number - line count" for x in g)

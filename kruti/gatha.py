@@ -157,7 +157,10 @@ def _units(lines, cfg) -> list:
                     cur.items.append(("prose",))
             title_open = False
             continue
-        if t.kind == "tune" and not title_open and pending_start == len(cur.items) and any(
+        last_line = next((x.line for x in reversed(cur.items) if isinstance(x, _Piece)), None)
+        ended = pending_start == len(cur.items) or bool(
+            last_line and re.search(r"[.।॥]\s*(?:\S{1,5}\s*){0,2}$", last_line.text))
+        if t.kind == "tune" and not title_open and ended and any(
                 isinstance(x, _Piece) for x in cur.items) and cur.items[-1] != ("prose",) and not (
                 isinstance(cur.items[-1], tuple) and cur.items[-1][0] == "part"):
             close()                     # a tune line after a finished gatha: the next Kruti,
@@ -266,7 +269,7 @@ def _numbered(items, cfg):
 
 def _weight(text: str) -> float:
     s = text.rstrip()
-    return 1.0 if s.endswith("॥") else 0.5 if s.endswith((";", "।")) else 0.0
+    return 1.0 if s.endswith("॥") else 0.75 if s.endswith(".") else 0.5 if s.endswith((";", "।")) else 0.0
 
 
 def _split_unnumbered(pieces, cfg):
