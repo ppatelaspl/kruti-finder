@@ -246,7 +246,9 @@ def classify_book(pages: list, cfg: dict) -> tuple:
                 marks = [(len(text.rstrip()), None)]   # "…મુજથી उ": a refrain line, ૩ as a letter
             t = TLine(p.page, text, light, "", ln.conf, p.source, gap,
                       (ln.x0 - lx) / w, fill, marks)
-            if _SERIAL_ONLY.match(light) and 0 < i < n - 1 and not marks:
+            half = re.fullmatch(r"\s*[\dA-Za-z\u0900-\u0aff]{1,3}\s*[)\]]\s*", light)
+            centred = fill < 0.15 and 0.3 < (ln.x0 - lx) / w < 0.7
+            if (_SERIAL_ONLY.match(light) or (half and centred)) and 0 < i < n - 1 and not marks:
                 t.kind = "heading"               # "(२)", "[२३]" inside the page: a Kruti serial
             elif _is_page_furniture(light, repeated, edge=i < 2 or i >= n - 2) or (
                     (p.page, i) in edge_furniture):

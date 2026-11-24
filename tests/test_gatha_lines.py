@@ -533,3 +533,9 @@ def test_short_refrain_line_ending_in_a_letter_digit_is_a_mark():
 def test_of_two_adjacent_numbers_the_cue_is_the_one_ending_in_zero():
     lines, _ = classify_book([page(1, [("अरबुदथी पेसी वधै। घनमांस कहात ॥ २१॥ ૭૦ ॥ मांसतणी", 60, 350)])], CFG)
     assert [n for _, n in lines[0].marks] == [21]
+
+
+def test_centred_serial_missing_its_opening_bracket_is_a_heading():
+    for t in ("6)", "ઉ)"):
+        pages = [gpage(1, SAJ[:2] + [(t, 200, 215, 80)] + SAJ[:2])]
+        assert kind_of(pages, t) == "heading", t
