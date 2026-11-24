@@ -134,3 +134,167 @@ def test_layout_measures():
     assert abs(lines[0].fill - (260 - 100) / 300) < 0.01
     assert abs(lines[1].indent - (135 - 60) / 300) < 0.15
     assert lines[1].gap_above > 1.5 and lines[2].gap_above < 0.2
+
+
+# ---- found on the tuning book B000505 (verse, then its explanation, then the next verse)
+COMMENTARY = [("कहे कोई भवी सि जोडी, श्रुतमां नहीं खोडी |", 90, 300),
+              ("ते मिथ्या उद्धत भाव, श्रुत जलधि भवे नावा ॥ ११ ॥", 90, 320),
+              ("अर्थ--वरी केटलाक एम बोले छे जे नवी जोडी करवी ते सिद्धांतमां तो काइ", LEFT, RIGHT),
+              ("स्तवन सज्झाय जोडवानुं शुं काम छे केमके श्रुत के० सिद्धांतमां तो काइ", LEFT, RIGHT),
+              ("सिद्धातरूप समुद्रमां पण नावा होय तो प्रवेश थाय ए भाव ॥ ११ ॥", LEFT, 330),
+              ("पूरव सूरियें कीधी, तेणे जो नवि करवी सिद्धि ।", 90, 290),
+              ("तो सर्वे कीधो धर्म, नवी जोयो मर्म ॥ १२ ॥", 90, 300),
+              ("अये--एवं वली प्रतिवादी बोल्या के तो पूर्वाचार्ये जोडी छे तेने भणो रे", LEFT, RIGHT),
+              ("यतः-“इको य दोसो, जे भाचर खलजणस्स पीडत्ति । तदवि पयट्टो इत्थं, सुय-", LEFT, RIGHT),
+              ("णाण गरो ॥ १ ॥ तत्तो चिय जं कुसल, तत्तो तेसिपि नहु पीडा । अद्धासया", LEFT, RIGHT),
+              ("पवित्ति, सव्वे निद्दोसिया भणिया ॥ २ ॥” ॥ १२ ॥", LEFT, 250),
+              ("ते मनमां भावीने कहे छे. यतः-“अइपरिणई अपरिणई, दोवि जणो पणासेति ।", LEFT, RIGHT),
+              ("तम्हा देसणमाइक्खई, मग्गरक्खहा ॥ १ ॥” १२ ॥", LEFT, 240),
+              ("एम श्रुतनो नहीं उच्छेद, ए तो एक देशनो भेद |", 90, 290),
+              ("ए अर्थ सुणि उल्लासें भवी वरते श्रुत अभ्यासे ॥ १३ ॥", 90, 320)]
+
+
+def test_explanation_closing_with_the_gatha_number_is_prose():
+    ks = kinds([page(1, COMMENTARY)])
+    assert ks[4][1] == "prose"
+
+
+def test_verse_after_explanation_is_verse():
+    ks = kinds([page(1, COMMENTARY)])
+    assert [k for _, k in ks[5:7]] == ["verse", "verse"]
+    assert [k for _, k in ks[13:15]] == ["verse", "verse"]
+
+
+def test_garbled_explanation_opener_is_prose():
+    assert kinds([page(1, COMMENTARY)])[7][1] == "prose"
+
+
+def test_verse_quoted_in_explanation_is_prose():
+    ks = kinds([page(1, COMMENTARY)])
+    assert ks[10][1] == "prose" and ks[12][1] == "prose"
+
+
+def test_stray_letter_line_is_furniture():
+    pages = [page(1, VERSES + [("ર", 200, 205), ("क", 210, 216)])]
+    assert kind_of(pages, "ર") == "furniture" and kind_of(pages, "क") == "furniture"
+
+
+def test_wide_verse_after_explanation_is_verse():
+    rows = COMMENTARY[:4] + [("ए भाव जाणवो ॥ ११ ॥", LEFT, 200),
+                             ("कहे कोईक भवी रीते, मुनि भिक्षा भांजे भीते ।", 90, 330),
+                             ("ते जुडुं शुभ मति ईहे, मुनि अंतरायथी बीहे ॥ १२ ॥", 90, 352)]
+    ks = kinds([page(1, rows)])
+    assert [k for _, k in ks[5:7]] == ["verse", "verse"]
+
+
+def test_refrain_abbreviation_before_number_is_a_mark():
+    rows = [("गीतारथ विण भूला भमता, कष्ट करे अभिमानेरे ।", 90, 300),
+            ("पराये गंठी लगे नवी आव्या, ते सूता अज्ञानेरे ॥श्रीजिन०३॥", 90, 330),
+            ("तेह कहे गुरु गच्छ गीतारथ, प्रतिबंधे शुं कीजेरे ।", 90, 300),
+            ("दर्शन ज्ञान चरित आदरियें, आप आप तरीजेरे ।श्रीजिन० ४॥", 90, 330)]
+    lines, _ = classify_book([page(1, rows)], CFG)
+    assert [[n for _, n in t.marks] for t in lines] == [[], [3], [], [4]]
+
+
+# ---- found on the tuning book B039544 (Gujarati, bare verse numbers at the right margin)
+def gpage(no, rows):
+    """rows: (text, x0, x1, conf) on a page whose text box is set by full-width lines."""
+    lines, y = [], 40
+    for text, x0, x1, conf in rows:
+        lines.append(Line(text, x0, y, x1, y + 14, conf))
+        y += 18
+    return PageLayout(no, "ocr", 80, 420, 600, lines)
+
+
+SAJ = [("એક મ્હેલી ખીજે મળે, વ્હાલા મતમાં નાહિ તસ નેહ;", 60, 270, 86),
+       ("લીધા મૂકી જે કરે, તતે તો આખર આવે છેહ. વ૦ ૧૩", 60, 330, 91),
+       ("હુકમ લેઈને ત્યાં ગયે।, દીયે આંખા શુ કાન; ~ \"5", 60, 325, 80),
+       ("માંડી વાત છાની કહી, આવ્યે! તે બુદ્ધિ નિધાન. મારગ૦ ૪.", 60, 330, 85),
+       ("“યેળતુ' સોની ઉચરે, ન શે જો એહ; `", 60, 310, 83),
+       ("એને કરતાં તે તમે, સુજને કરજો તેહ. મારગ૦ છ", 60, 325, 88),
+       ("ત્રીજી તે વાર આવ્યા તુમે રે, મારો અક્લ અવતાર રે. મનડુ'૦", 60, 335, 85),
+       ("વિ તા હોતા તી તતો તીતી તી તી તીતીતીતી તો + તો તી તી તી", 100, 250, 49),
+       ("से વારારા ગરાસ", 120, 200, 31)]
+
+
+def test_gujarati_verse_with_margin_numbers_is_verse():
+    ks = kinds([gpage(1, SAJ)])
+    assert [k for _, k in ks[:7]] == ["verse"] * 7
+
+
+def test_low_confidence_junk_is_furniture():
+    ks = kinds([gpage(1, SAJ)])
+    assert [k for _, k in ks[7:]] == ["furniture", "furniture"]
+
+
+def test_bare_number_with_full_stop_and_garbled_digit_are_marks():
+    rows = SAJ[:7] + [(f"પંક્તિ {i} આ રીતે ચાલે છે, ગાથા. વ૦ {i}", 60, 330, 85) for i in range(5, 13)]
+    lines, _ = classify_book([gpage(1, rows)], CFG)
+    by_text = {t.text: [n for _, n in t.marks] for t in lines}
+    assert by_text[SAJ[3][0]] == [4]
+    assert by_text[SAJ[5][0]] == [None]
+
+
+def test_running_header_read_differently_is_furniture():
+    heads = ["३०९ ] પ્રાચીન સજ્ઝાય મહેદધિ ભાગ- १", "પ્રાચીન સજય મહેદધિ ભાગ-૨ | ૨૦૭",
+             "પ્રાચીન સજ્ઝાય મહોદધિ ભાગ-૧ | [ २०४", "૨૧૦] પ્રાચીન સન્‍્ઝાચ મહોદધિ ભાગ-૧"]
+    pages = [gpage(n, [(h, 50, 380, 80)] + SAJ[:2]) for n, h in enumerate(heads, 1)]
+    lines, _ = classify_book(pages, CFG)
+    assert all(t.kind == "furniture" for t in lines if t.text in heads)
+
+
+def test_part_heading_with_stray_bar_is_part():
+    pages = [gpage(1, SAJ[:2] + [("| ( દોહા )", 150, 230, 84)] + SAJ[:2])]
+    assert kind_of(pages, "| ( દોહા )") == "part"
+
+
+def test_heading_with_type_word_inside_and_ocr_debris():
+    for t in ("દેવકીના છ પુત્રની સજઝાય અથવા છ સાધુની", "अ સંગ્રામ સોનીની સજઝાય, રર"):
+        pages = [gpage(1, [(t, 100, 300, 70)] + SAJ[:2] + SAJ[:2])]
+        assert kind_of(pages, t) == "heading", t
+
+
+def test_similar_kruti_headings_on_every_page_are_not_running_headers():
+    heads = ["2. श्री अजित जिन चैत्यवन्दन", "3. श्री सम्भव जिन चैत्यवन्दन",
+             "4. श्री अभिनन्दन जिन चैत्यवन्दन", "6. श्री पदाप्रभ जिन चैत्यवन्दन"]
+    pages = [page(n, [(h, 140, 290)] + VERSES) for n, h in enumerate(heads, 1)]
+    lines, _ = classify_book(pages, CFG)
+    assert [t.kind for t in lines if t.text in heads] == ["heading"] * 4
+
+
+def test_frame_serial_and_debris_lines_are_furniture():
+    debris = [("त्‌ ૧૩૦ ત", 150, 250, 62), ("आ | ૧૩૧ मित्रदार के | के, के की |", 100, 330, 62),
+              ("6. ते ', उ ६. 3 ६, 2 घ सं. 2 ક. કફ ६. છે. ક 3 5, 35. ક હ. ક.", 60, 330, 51)]
+    ks = kinds([gpage(1, SAJ[:2] + debris + SAJ[:2])])
+    assert [k for _, k in ks[2:5]] == ["furniture"] * 3
+
+
+def test_kruti_heading_at_a_gatha_boundary():
+    t = "દેવકીના છ પુત્રની સજઝાય અથવા છ સાધુની"
+    pages = [gpage(1, SAJ[:2] + [(t, 70, 260, 88)] + SAJ[:2])]
+    assert kind_of(pages, t) == "heading"
+
+
+def test_full_width_line_ending_in_full_stop_is_verse():
+    rows = [("જે મત તે તેહ મિલી રહ્યા, વહાલા ઉત્તસ ઉપમ તાસ; , .", 60, 280, 88),
+            ("જે જો તિલ કુલની પ્રીતડી, તેહની જગમાં રહી સુવાસ. ५० ૧૪", 60, 335, 87)]
+    ks = kinds([gpage(1, SAJ[:2] + rows + SAJ[:2])])
+    assert ks[3][1] == "verse"
+
+
+# ---- found on the tuning book S008673 (Gujarati stavans, refrain cues after dots)
+PAJ = [("પ્રભુ વીર જિણુ'દદ વિચારી, ભા'ખ્યા પવ? પજુસણુ ભારી", 60, 362, 85),
+       ("આખા વષમાં તે દિન સોટા, આઠે નહી' તેમાં છોટા રે", 60, 360, 85),
+       ("એ ઉત્તમને ઉપકારી....ભાખ્યા. ૧", 177, 360, 85),
+       ("જેમ ઔષધમાંહિ કહીએ, અમતને સારુ લહીએ रे", 60, 337, 85),
+       ("મહામ'ત્રમાં નવકાર ભારી....ભા'ખ્યા. ૨", 153, 360, 85)]
+
+
+def test_wide_lines_ending_in_a_verse_particle_are_verse():
+    ks = kinds([gpage(1, PAJ)])
+    assert [k for _, k in ks] == ["verse"] * 5
+
+
+def test_verse_line_starting_with_raag_is_not_a_tune_line():
+    t = "રાગ હોત ન કેવળજ્ઞાન રે....મ્હાશ."
+    assert kind_of([gpage(1, PAJ[:2] + [(t, 160, 330, 85)])], t) == "verse"

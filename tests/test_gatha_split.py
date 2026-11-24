@@ -166,3 +166,63 @@ def test_confidence_levels():
     assert confidence(mk("No number - line count"), 70) == "Low"
     assert confidence(mk("Numbered verse", conf=60), 70) == "Low"
     assert confidence(mk("Numbered verse", checks=["a", "b"]), 70) == "Low"
+
+
+def test_repeated_number_closing_an_explanation_is_not_a_gatha():
+    lines = numbered(2)[:2] + [L("भावार्थ- आ गाथानो अर्थ", "prose"),
+                               L("सिद्धांतमां कह्युं छे ए भाव ॥1॥")] + numbered(3)[2:]
+    g = gathas([L("स्तवन", "heading")] + lines)
+    assert [x.no for x in g] == ["1", "2", "3"]
+    assert g[1].first == "पद 2 क,"
+
+
+def test_first_number_of_a_part_misread():
+    lines = [L("ढाल पांचमी", "part"), L("पद 1 क,"), L("पद 1 ख ॥9॥"), L("पद 2 क,"), L("पद 2 ख ॥2॥"),
+             L("पद 3 क,"), L("पद 3 ख ॥3॥")]
+    g = gathas([L("स्तवन", "heading")] + lines)
+    assert [x.no for x in g] == ["1", "2", "3"] and g[0].how == "Number inferred (OCR garbled)"
+
+
+def test_refrain_cue_read_as_a_number_is_not_a_mark():
+    lines = []
+    for i in range(1, 5):
+        cue = L(f"પદ {i} ક, ३०")
+        cue.marks = [(len(cue.text), 30)]      # a book numbering verses at the line end
+        lines += [cue, L(f"પદ {i} ખ. રૂડા૦ ॥{i}॥")]
+    g = gathas([L("સજ્ઝાય", "heading")] + lines)
+    assert [x.no for x in g] == ["1", "2", "3", "4"]
+    assert (g[1].first, g[1].last) == ("પદ 2 ક, ३०", "પદ 2 ખ. રૂડા૦ ॥2॥")
+
+
+def test_recurring_cue_number_dropped_even_next_to_a_misread_number():
+    lines, nums = [], [7, 8, 3, 10, 11, 12]              # 9 misread as 3
+    for i, n in zip(range(7, 13), nums):
+        cue = L(f"પદ {i} ક, ३०")
+        cue.marks = [(len(cue.text), 30)]
+        end = L(f"પદ {i} ખ. ધન્ય૦ {n}")
+        end.marks = [(len(end.text), n)]
+        lines += [cue, end]
+    g = gathas([L("સજ્ઝાય", "heading")] + lines)
+    assert len(g) == 6 and all(x.first.endswith("३०") for x in g)
+
+
+def test_gatha_with_a_lost_number_is_split_by_the_usual_line_count():
+    lines = numbered(5)
+    lines[5] = L("पद 3 ख")                     # gatha 3's number lost in OCR
+    g = gathas([L("स्तवन", "heading")] + lines)
+    assert [x.no for x in g] == ["1", "2", "3", "4", "5"]
+    assert (g[2].first, g[2].last) == ("पद 3 क,", "पद 3 ख")
+    assert (g[3].first, g[3].last) == ("पद 4 क,", "पद 4 ख ॥4॥")
+    assert g[2].how == "Number inferred (OCR garbled)"
+
+
+def test_unnumbered_stanzas_end_at_their_refrain_cue():
+    rows = ["વીર સંજમ લીયું રે, પંચસયા પરિવાર", "છઠ છઠ તપને પારણે રે,",
+            "કરતાં ઉગ્ર વિહાર....જયંકર જીવો ગૌતમ સ્વામ.",
+            "અષ્ટાપદ લબ્ધિએ ચડ્યા રે, વાંદ્યા જિન ચોવીસ", "જગ ચિંતામણી તિહાં કીયું રે",
+            "સ્તવિયા શ્રી જગદીશ....જયંકર જીવો ગૌતમ સ્વામ.",
+            "પનરસે તાપસ પારણે રે, ખીર ખાંડ ઘૃત ભરપુર", "અમિય જાસ અંગૂઠડો રે,",
+            "ઉગ્યો કેવલસૂર....જયંકર જીવો ગૌતમ સ્વામ."]
+    g = gathas([L("ગૌતમસ્વામીનું સ્તવન", "heading")] + [L(r) for r in rows])
+    assert [(x.first, x.last) for x in g] == [(rows[0], rows[2]), (rows[3], rows[5]), (rows[6], rows[8])]
+    assert all(x.how == "No number - gap" for x in g)

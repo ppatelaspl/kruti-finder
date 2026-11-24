@@ -90,6 +90,7 @@ def _units(lines, cfg) -> list:
     last_no, part_since = 0, False
     prose_from = None                      # page where the current prose run started
     pending_start = 0                      # index in cur.items where the open gatha began
+    prose_since_mark = False
 
     def close():
         nonlocal cur, last_no, part_since
@@ -129,6 +130,7 @@ def _units(lines, cfg) -> list:
             pending_start = len(cur.items)
             continue
         if t.kind == "prose":
+            prose_since_mark = True
             if prose_from is None:
                 prose_from = t.page
                 if any(isinstance(x, _Piece) for x in cur.items):
@@ -146,6 +148,12 @@ def _units(lines, cfg) -> list:
                 pending_start = 0
             prose_from = None
         for p in _pieces(t):
+            if p.marked and p.number is not None and p.number == last_no and prose_since_mark:
+                # "… ए भाव ॥ ११ ॥": an explanation closing with the gatha's number
+                cut = max((i for i, x in enumerate(cur.items) if x == ("prose",)), default=None)
+                if cut is not None and cut >= pending_start:
+                    cur.items = cur.items[:cut + 1]
+                continue
             if p.marked and p.number == 1 and last_no >= 2 and not part_since:
                 after = [n for n in next_numbers(t, 4) if n is not None]
                 after = after[after.index(1) + 1:] if 1 in after else after
@@ -163,6 +171,7 @@ def _units(lines, cfg) -> list:
                     last_no += 1
                 part_since = part_since and p.number is None
                 pending_start = len(cur.items)
+                prose_since_mark = False
     close()
     return units
 
@@ -176,8 +185,11 @@ def _fix_numbers(raw: list) -> list:
         nxt = next((x for x in raw[i + 1:] if x is not None), None)
         if n is None:
             out.append((expected, True))
-        elif n == expected or prev == 0:
+        elif n == expected:
             out.append((n, False))
+        elif prev == 0:                       # a part's first number: 1, unless the book
+            misread = nxt is not None and nxt <= 3 and n > nxt   # starts later on purpose
+            out.append((nxt - 1, True) if misread else (n, False))
         elif nxt is not None and nxt == expected + 1 or n > expected + 3 or n < expected:
             out.append((expected, True))
         else:
@@ -231,6 +243,10 @@ def _split_unnumbered(pieces, cfg):
         parts = [pieces[a:b] for a, b in zip(starts, starts[1:] + [n])]
         return parts if len(parts) >= 2 and max(len(p) for p in parts) <= max_len else None
 
+    from .gatha_lines import REFRAIN_AFTER_DOTS
+    ends = [i + 1 for i in range(n - 1) if REFRAIN_AFTER_DOTS.search(pieces[i].line.light)]
+    if len(ends) >= 1 and REFRAIN_AFTER_DOTS.search(pieces[-1].line.light) and (parts := cut(ends)):
+        return parts, BY_GAP                     # each stanza closes with its refrain cue
     gaps = [i for i in range(1, n) if pieces[i].line.gap_above >= cfg["gatha_gap"]]
     if gaps and (parts := cut(gaps)):
         return parts, BY_GAP
@@ -285,9 +301,20 @@ def _unit_gathas(unit, cfg) -> list:
     pieces = [x for x in unit.items if isinstance(x, _Piece)]
     out = []
     if sum(p.marked for p in pieces) >= 2:
-        for part, ps, no, how, prose, unmarked in _numbered(unit.items, cfg):
+        rows = _numbered(unit.items, cfg)
+        sizes = sorted(len(ps) for _, ps, _, how, _, unmarked in rows if how == NUMBERED)
+        usual = sizes[len(sizes) // 2] if len(sizes) >= 3 else 0
+        for part, ps, no, how, prose, unmarked in rows:
             extra = [C_PROSE] if prose else []
-            if unmarked and len(ps) < 1:
+            if not ps:
+                continue
+            k = len(ps) // usual if usual else 1
+            if usual and k >= 2 and len(ps) == k * usual and no.isdigit():
+                # a lost verse number joined k gathas of the usual size: split them again
+                for j in range(k):
+                    out.append(_gatha(part, str(int(no) - k + 1 + j),
+                                      ps[j * usual:(j + 1) * usual],
+                                      how if j == k - 1 else INFERRED, cfg, extra if j == 0 else []))
                 continue
             out.append(_gatha(part, no, ps, how, cfg, extra))
     else:
@@ -310,8 +337,46 @@ def _unit_gathas(unit, cfg) -> list:
     return out
 
 
+def _drop_stray_marks(lines) -> None:
+    """A number far out of sequence, right before the expected one (… માંસ, ३० then
+    … ॥7॥): a refrain cue such as રૂ૦ read as digits, not a verse mark."""
+    marks = [(t, k) for t in lines if t.kind == "verse" for k in range(len(t.marks))]
+    nums = [t.marks[k][1] for t, k in marks]
+    drop, prev = set(), None
+    # the same number again and again (३० on every first half-line): a cue, not a verse
+    counts, fits, before = {}, set(), None
+    for n in nums:
+        if n is not None and before is not None:
+            if n == before + 1:
+                fits.add(n)                            # continues the numbering somewhere
+            elif n not in (1, before + 2):
+                counts[n] = counts.get(n, 0) + 1       # out of sequence here
+        before = n if n is not None else before
+    suspect = {n for n, c in counts.items() if n >= 10 and c >= 3 and n not in fits}
+    last = None
+    for i, n in enumerate(nums):
+        if n in suspect and (last is None or n != last + 1):
+            drop.add(i)
+        elif n is not None:
+            last = n
+    for i, n in enumerate(nums):
+        if n is None or i in drop:
+            continue
+        nxt = next((x for j, x in enumerate(nums[i + 1:], i + 1) if x is not None and j not in drop),
+                   None)
+        if (prev is not None and n > prev + 2       # far ahead; a misread lower number
+                and nxt is not None and nxt in (prev + 1, prev + 2)):   # stays (inferred)
+            drop.add(i)
+            continue
+        prev = n
+    for i in sorted(drop, reverse=True):
+        t, k = marks[i]
+        t.marks = t.marks[:k] + t.marks[k + 1:]
+
+
 def split_gathas(lines: list, cfg: dict) -> list:
     """GKruti with 2 or more gathas, in book order, numbered 1, 2, 3 …"""
+    _drop_stray_marks(lines)
     krutis = []
     for unit in _units(lines, cfg):
         gathas = _unit_gathas(unit, cfg)
