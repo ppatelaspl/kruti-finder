@@ -728,3 +728,12 @@ def test_repeated_refrain_after_an_unnumbered_stanza_end_closes_that_stanza():
     ks = split_gathas(classify_book([page(1, PREV_END + rows)], CFG)[0], CFG)
     g = [x for k in ks for x in k.gathas if "भजन" in k.title]
     assert [(x.first, x.last) for x in g] == [(rows[i][0], ref) for i in (1, 4, 7)]
+
+
+def test_a_long_run_of_dandas_does_not_stall_the_reader():
+    """An OCR'd border read as "||||…" must not freeze the run."""
+    import time
+    pages = [page(1, PREV_END + [("।" * 2000, LEFT, RIGHT), ("॥|" * 800, LEFT, RIGHT)] + NEXT)]
+    t0 = time.time()
+    classify_book(pages, CFG)
+    assert time.time() - t0 < 2

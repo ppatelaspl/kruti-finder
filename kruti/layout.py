@@ -259,7 +259,10 @@ def _ink_gutter(img):
             if x - start >= 0.015 * w and (best is None or x - start > best[1] - best[0]):
                 best = (start, x)
             start = None
-    return None if best is None else lo + (best[0] + best[1]) // 2
+    if best is None:
+        return None
+    gx = lo + (best[0] + best[1]) // 2
+    return gx if 0.01 * w < gx < 0.99 * w else None
 
 
 def _ocr(png: bytes, page_no: int, width: float, height: float, cfg) -> PageLayout:

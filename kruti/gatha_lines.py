@@ -120,7 +120,7 @@ _AFTER_STOP_LETTER = re.compile(r"[^\s\d.।॥;][.।॥]\s*(?:र|रू|प|�
 # "… आज० २. सुण…", "… प्रभु० ३ चोथे…": a refrain cue, then the verse number, inside a line
 _CUE_NUMBER = re.compile(r"(?<=[^\s\d.।॥0])0\s*(\d{1,2})\s*\.?(?=\s|$)")
 _DANDA_LETTER = re.compile(r"[।॥]+\s*[^\W\d_][\u093e-\u094d\u0abe-\u0acd]?\s*[।॥]+")
-_INLINE_PART = re.compile(r"^\s*[।॥]*\s*(\S+?)\s*[।॥]*\s*\d{1,2}\s*[।॥]+\s*(?=\S)")   # "॥ ढाल ॥ २॥ …"
+_INLINE_PART = re.compile(r"^[\s।॥]*([^\s।॥\d]+)[\s।॥]*\d{1,2}\s*[।॥]+\s*(?=\S)")   # "॥ ढाल ॥ २॥ …"
 _CUE_LETTER = re.compile(r"(?<=[^\s\d.।॥0])0\s*[रपछ]\s*\.(?=\s|$)")         # "आज० છ.": ૭ as a letter
 # "… લાગીરે. સ્હાવ ૧૩. …", "… સા પ. …": a short refrain cue (its ० misread), number, stop
 _CUE_WORD_NUMBER = re.compile(r"(?<=\s)[^\s\d]{1,6}\s+(\d{1,2})\s*\.(?=\s|$)")
