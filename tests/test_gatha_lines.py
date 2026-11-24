@@ -699,3 +699,32 @@ def test_refrain_cue_alone_on_a_line_is_not_the_next_gathas_first_line():
     assert "जगमे . ।।" not in firsts and "जगमें . ।।" not in firsts
     assert "गिर-सिर दिवला जोइया, चहुंदिशि बाजे पौन ।" in firsts
     assert "जो छिन जाय सो आयु में, निशि दिन ढूकै काल ।" in firsts
+
+
+def test_a_full_refrain_line_repeated_at_every_stanza_end_ends_each_gatha():
+    """"નિષ્કામિ … શ્રીબદરીશ્વરં," closing every stanza: each is a gatha end, number or not."""
+    from kruti.gatha import split_gathas
+    ref = "નિષ્કામિ શિવસુખધામિ સ્વામી નમામિ શ્રીબદરીશ્વરં,"
+    rows = [("શ્રી બદરીશ્વર સ્તુતિ", 160, 280)]
+    for a, b in (("જય અકળ ઈશ્વર સકળ જગસૂજનાર ખળબળ ખંડન,", "બળ પ્રબળધર કળિકાળમળ હરનાર હરિ જગ ભંજન;"),
+                 ("જય સ્વચ્છ રૂપક મચ્છ ભૂપ અનૂપ કચ્છપ કેશવં,", "જય શ્રીધરણ ધરણીધરણ સુખકરણનામ સદાશિવ;"),
+                 ("બળિ છળિત મુનિધુનિ ચળિત ધનુધર દળિત ભૃગુકુળભૂષણં,", "રઘુનાથ નાથ અનાથ નાથ વિદારણં ખરદૂષણં;")):
+        rows += [(a, 120, 320), (b, 120, 320), (ref, 120, 330)]
+    ks = split_gathas(classify_book([page(1, PREV_END + rows)], CFG)[0], CFG)
+    g = [x for k in ks for x in k.gathas if "સ્તુતિ" in k.title]
+    assert [x.first for x in g] == [rows[1][0], rows[4][0], rows[7][0]]
+    assert all(x.last == ref for x in g)
+
+
+
+def test_repeated_refrain_after_an_unnumbered_stanza_end_closes_that_stanza():
+    from kruti.gatha import split_gathas
+    ref = "आ-आ ऽ शरण में आ ऽऽऽ-2"
+    rows = [("गुरु भक्ति भजन", 160, 280)]
+    for a, b in (("भोले-भाले गुरुवर, बैठे सामने तेरे।", "आये हैं हम तो, चरणों में तेरे।"),
+                 ("मेरठ वाले भक्त ये कहते गुरुवर मेरे।", "दर्शन को आये, सब मिल के तेरे।"),
+                 ("सारे जग में तेरी, महिमा न्यारी है।", "तेरी शरण में, दुनिया सारी है।")):
+        rows += [(a, 120, 320), (b, 120, 320), (ref, 150, 260)]
+    ks = split_gathas(classify_book([page(1, PREV_END + rows)], CFG)[0], CFG)
+    g = [x for k in ks for x in k.gathas if "भजन" in k.title]
+    assert [(x.first, x.last) for x in g] == [(rows[i][0], ref) for i in (1, 4, 7)]

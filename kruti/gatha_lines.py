@@ -292,6 +292,7 @@ def classify_book(pages: list, cfg: dict) -> tuple:
     _convention_headings(out, cfg, title_keys)
     _cue_lines(out, cfg)
     _sequence_marks(out)
+    _refrain_lines(out)
     _numbered_glosses(out)
     _headings_need_verse(out)
     return out, printed
@@ -687,6 +688,30 @@ def _cue_lines(lines, cfg):
         if prev is not None and prev.kind == "verse" and not prev.marks:
             prev.marks = [(len(prev.text.rstrip()), None)]
         t.marks = []
+
+
+def _refrain_key(light: str) -> str:
+    return re.sub(r"[\s\d.,;:!?।॥|'\"()\[\]०-९]+$", "", light).strip()
+
+
+def _refrain_lines(lines, window=40):
+    """A full line repeated at the end of every stanza ("નિષ્કામિ … શ્રીબદરીશ્વરં,") is the
+    Kruti's refrain: each copy ends a gatha, even where OCR lost or garbled its number."""
+    verse = [t for t in lines if t.kind == "verse"]
+    keys = [_refrain_key(t.light) for t in verse]
+    for i, t in enumerate(verse):
+        if t.marks or len(keys[i].split()) < 3:
+            continue
+        if i + 1 < len(verse) and any(n is not None for _, n in verse[i + 1].marks):
+            continue                     # the next line closes this gatha: t is inside it
+        near = range(max(0, i - window), min(len(verse), i + window + 1))
+        same = sum(1 for j in near if j != i and len(keys[j]) > 10
+                   and fuzz.ratio(keys[i], keys[j]) >= 88)
+        if same >= 2:
+            t.marks = [(len(t.text.rstrip()), None)]
+            prev = verse[i - 1] if i else None
+            if prev is not None and prev.marks and all(n is None for _, n in prev.marks):
+                prev.marks = []          # the refrain closes the stanza, not the line before it
 
 
 _LINE_END_NUMBER = re.compile(r"(?<=\s)(\d{1,2})\s*[.,;]?\s*$")
