@@ -1,0 +1,25 @@
+{
+ "set": "unseen",
+ "file": "kruti-samples-extra/stuti_vidya_samantabhadra_commentary_hin.pdf",
+ "pages": [
+  83,
+  86
+ ],
+ "krutis": [
+  {
+   "title": "स्तुतिविद्या (continued from page 82)",
+   "gathas": [
+    {
+     "no": "1",
+     "first": "प्रकाशयन्‌ घमुदभूतस्त्वमुदूघाककलालयः ।",
+     "last": "विकास्यन्‌ समुदुभूतः कुमुदं क्मलाग्रियः ॥३१॥"
+    },
+    {
+     "no": "2",
+     "first": "घाम त्विषां तिरोधानविकलो विमलोक्षयः |",
+     "last": "स्वमदोषाकरोस्तोनः सकलो विषुलोदय: ॥३२॥"
+    }
+   ]
+  }
+ ]
+}
