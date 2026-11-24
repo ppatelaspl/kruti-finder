@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples-extra/round4/R4_ARCHANA.pdf"
 PAGES = (10, 13)
 # Puja book, no verse numbers: each 4-line stanza (2-line स्थापना doha) is a gatha.

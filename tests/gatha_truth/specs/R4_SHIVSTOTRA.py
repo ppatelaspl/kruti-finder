@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples-extra/round4/R4_SHIVSTOTRA.pdf"
 PAGES = (64, 67)
 # Sanskrit stotras with a Hindi translation under a rule on each page: only the Sanskrit

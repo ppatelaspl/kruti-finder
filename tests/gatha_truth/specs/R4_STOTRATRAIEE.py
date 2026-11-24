@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples-extra/round4/R4_STOTRATRAIEE.pdf"
 PAGES = (31, 34)
 # Commentary book (Svayambhu stotra): each number has a 2-line Sanskrit verse (॥n॥) followed

@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples-extra/round4/R4_RAJPAD.pdf"
 PAGES = (24, 27)
 # Shrimad Rajchandra poems, numbered gathas ("... n" at line end). Headings "(૧૨)", titles,

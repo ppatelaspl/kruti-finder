@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples-extra/round4/R4_BHEDGNAAN.pdf"
 PAGES = (50, 53)
 # Bhajan book, one bhajan per page. The opening ટેક block is labelled as a gatha.
