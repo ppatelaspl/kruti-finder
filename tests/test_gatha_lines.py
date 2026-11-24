@@ -459,3 +459,10 @@ def test_running_header_that_names_a_kruti_type():
     pages = [gpage(n, [(h, 60, 340, 80)] + SAJ[:2] + SAJ[:2]) for n, h in enumerate(heads, 1)]
     lines, _ = classify_book(pages, CFG)
     assert all(t.kind == "furniture" for t in lines if t.text in heads)
+
+
+# ---- round 2, B019985 (pujan ritual: numbered mantras)
+def test_numbered_mantra_lines_are_invocations_not_verse():
+    for t in ("चढ़ावे ॥४॥ ॐ हीं णमो अरिहंताणं मिश्री छवंग चढ़ावे ॥५॥ च छ ज",
+              "स ह ॐ हीं रावगाय नमः । ३२ दक्षा चढ़ावे ॥१६॥ सब ९६ द्राक्षा"):
+        assert kind_of([page(1, VERSES + [(t, 60, 350)] + VERSES)], t) == "note", t

@@ -338,6 +338,8 @@ def _is_note(light: str, cfg) -> bool:
     words = _words(re.sub(r"[-–—:]", " ", light))
     if len(words) <= 10 and any(key_only(w) in keys for w in words):
         return True
+    if "ॐ" in light and re.search(r"नमः|नमो|स्वाहा|णमो", light):
+        return True                     # "ॐ ह्रीं … नमः ॥५॥": a numbered mantra, not a gatha
     return len(_FOOTNOTES.findall(light)) >= 2 and not re.search(r"[,;]", light)
 
 
