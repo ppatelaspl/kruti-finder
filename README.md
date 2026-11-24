@@ -82,6 +82,30 @@ their verses that way throughout.
 words) and prose such as prefaces and explanations (no heading, fewer than two numbered verses,
 long sentences). Anything that may still be a Kruti stays in, with the reason in Check.
 
+## Gatha Lines (second tab, new in 1.1.0)
+
+A separate tool in the same app. It needs **no Excel**: it reads PDF books and writes
+**`Gatha_Results.xlsx`**, one row per gatha (stanza) of every Kruti it finds, with the gatha's
+**first and last line** as printed. Preface, book details, explanations and the tune (raga/dhal)
+lines under a heading are left out; a Kruti interrupted by an explanation continues after it.
+Same languages and the same offline OCR as the first tab; feature 1's results are unchanged.
+
+Columns: File Name, Book Name, Kruti No., Kruti Name, Part, Gatha No., Total Gathas,
+First Line, Last Line, PDF Page, Book Page, Script, Text Source, OCR Confidence %,
+How found, Confidence, Check, Remarks.
+
+**Confidence** tells the reviewer which rows to check:
+
+- **High:** the book numbers this gatha, OCR quality is good, no warnings.
+- **Medium:** the gatha was split without a printed number (refrain, spacing, couplets), or one warning.
+- **Low:** split only by line count, low OCR quality, or several warnings (see *Check*).
+
+Measured on 28 labelled sample books: about 89% of gathas found, 82% of first lines and 80% of
+last lines correct. Old, low-resolution or damaged scans score much lower and need a manual
+check, so filter on *Confidence* and *Check* before using the rows.
+
+Command line: `python gatha_finder.py --books ./books --out ./output`
+
 ## Tuning (`config.yaml`)
 
 - **Too few matches on good pages:** lower `found_threshold` to 80. Wrong matches: raise it to 90.
@@ -102,4 +126,5 @@ long sentences). Anything that may still be a Kruti stays in, with the reason in
 - **Manuscript or old-script pages** (handwritten, padimatra, heavily damaged) are not read reliably by any off-the-shelf OCR. Rows from such pages are marked "OCR Quality: Low".
 - **Splitting relies on verse numbers and headings.** Kruti printed without verse numbers or a type-word heading (e.g. a single unnumbered doha) are not detected.
 - **Titles are a first draft.** They may include a raga/dhal line or miss a title placed below verse 1, and always need a reviewer's check.
+- **Gatha Lines is a first release.** Kruti in old or poor scans are often missed or merged; check rows marked Medium/Low.
 - **One book = one PDF.** If a book is split across several PDFs, a Kruti crossing the split is listed in both parts.

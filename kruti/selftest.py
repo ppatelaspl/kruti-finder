@@ -11,6 +11,7 @@ def run_selftest(out_path, sample_png=None):
     report = {"ok": False}
     try:
         import openpyxl, pymupdf, rapidfuzz  # noqa: F401,E401 - import check
+        from . import gatha_pipeline  # noqa: F401 - Gatha Lines engine is bundled
         from .config import merged
         from .ocr_setup import configure_ocr
         report["python"] = sys.version.split()[0]

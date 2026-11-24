@@ -61,6 +61,17 @@ To uninstall: `sudo apt remove kruti-finder`
    - **Cancel** stops after the current page. Everything read so far is saved, so the next Start continues quickly instead of starting over. The same applies if the computer restarts or the app is closed.
 5. When done, click **Open results (Excel)**. `Kruti_Results.xlsx` lists every Kruti found in the books, flagged *Matched - same script*, *Matched - other script* or *New*; the same Kruti in several books or scripts shares one Group ID.
 
+## Gatha Lines tab
+
+1. Open the **Gatha Lines** tab. No Excel is needed.
+2. Add PDF files or folders, choose **Save results to**, click **Start**.
+   Progress, Pause, Resume and Cancel work as in the first tab, and saved page text is reused.
+3. Click **Open results (Excel)**. `Gatha_Results.xlsx` has one row per gatha with its first and
+   last line, PDF and book page, and a **Confidence** (High/Medium/Low) with the reason in *Check*.
+   Review Medium and Low rows before using them.
+
+Only one tab can run at a time.
+
 **Tips**
 
 - Scanned books are slow to read, about 2–6 seconds per page. A 200-book run can take many hours; leave it running overnight.
