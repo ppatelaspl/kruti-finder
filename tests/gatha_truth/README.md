@@ -17,7 +17,7 @@ tuned only on the `tune` books; the `unseen` books are measured once, at the end
 
 ## Label format
 
-One JSON file per book: `{"file": "<pdf path>", "pages": [from, to], "krutis": [{"title": "…",
+One JSON file per book: `{"set": "tune|unseen", "file": "<pdf path>", "pages": [from, to], "krutis": [{"title": "…",
 "gathas": [{"part": "", "no": "1", "first": "…", "last": "…"}]}]}`.
 
 - `pages` is the labelled range (PDF page numbers). Only gathas that start and end inside
