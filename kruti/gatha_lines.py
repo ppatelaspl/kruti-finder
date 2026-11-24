@@ -251,13 +251,16 @@ def _running_edges(lights: dict, title_keys=()) -> set:
         for i in idx[:1] + idx[-1:]:
             key = _furniture_key(ls[i])
             title = re.sub(r"^[\s\d.()\[\]]+", "", ls[i]).strip(" .।॥")
-            if (6 <= len(key) and len(ls[i]) <= 70 and len(re.findall(r"[,;]", ls[i])) < 2
-                    and not _is_title(title, title_keys, [], 85)):   # a Kruti's own heading
-                cands[(pg, i)] = key
+            if 6 <= len(key) and len(ls[i]) <= 70 and len(re.findall(r"[,;]", ls[i])) < 2:
+                # a line naming a Kruti type must repeat almost exactly: Kruti headings
+                # ("श्री अजित जिन चैत्यवन्दन") differ more from each other than that
+                titled = _is_title(title, title_keys, [], 85)
+                cands[(pg, i)] = (key, 88 if titled else 70, 3 if titled else 2)
     found = set()
-    for (pg, i), key in cands.items():
-        alike = sum(1 for (pg2, _), k2 in cands.items() if pg2 != pg and fuzz.ratio(key, k2) >= 70)
-        if alike >= min(2, max(1, len(lights) - 1)):
+    for (pg, i), (key, need, times) in cands.items():
+        alike = sum(1 for (pg2, _), (k2, *_rest) in cands.items()
+                    if pg2 != pg and fuzz.ratio(key, k2) >= need)
+        if alike >= min(times, max(1, len(lights) - 1)):
             found.add((pg, i))
     return found
 
@@ -427,6 +430,7 @@ def _heading_shape(light: str, title_keys, t: TLine, cfg) -> bool:
         if len(tail.split()) <= 2 and all(sum(c.isalpha() for c in w) <= 2 for w in tail.split()):
             phrase = head
     phrase = phrase.strip(" .,:-–।॥\"'“”")
+    phrase = re.sub(r"\s*\[[^\]]*\]?\s*$", "", phrase).strip(" .,:-–।॥") or phrase   # "[४३५]"
     phrase = re.sub(r"\s*\([^)]*\)?\s*$", "", phrase) or phrase
     if not phrase or "," in phrase or len(phrase.split()) > 8:
         return False

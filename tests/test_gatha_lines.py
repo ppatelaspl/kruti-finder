@@ -444,3 +444,18 @@ def test_bracketed_line_with_a_dash_after_a_short_word_is_a_tune_line():
 def test_zero_cue_alone_is_no_mark():
     lines, _ = classify_book([page(1, [("नन) \"(न्न 0", 100, 200)])], CFG)
     assert lines[0].marks == []
+
+
+# ---- round 2, B021879
+def test_heading_with_trailing_bracketed_serial():
+    t = "3૩ કમ પયહી અધ્યયન [४३९] ।"
+    rows = SAJ[:2] + [(t, 150, 300, 85)] + SAJ[:2]
+    assert kind_of([gpage(1, rows)], t) == "heading"
+
+
+def test_running_header_that_names_a_kruti_type():
+    heads = ["'છત્તરાષ્યયનની સજ્ઝાયો ૩૫૬.", "ઉત્તરાષ્યયનની સજ્ઝાયો ૩૫૩", "ઉત્તરાધ્યયનની સજ્ઝાયો ૩૫૧",
+             "ઉત્તરાધ્યયનની સજ્ઝાયો ૩૫૫"]
+    pages = [gpage(n, [(h, 60, 340, 80)] + SAJ[:2] + SAJ[:2]) for n, h in enumerate(heads, 1)]
+    lines, _ = classify_book(pages, CFG)
+    assert all(t.kind == "furniture" for t in lines if t.text in heads)
