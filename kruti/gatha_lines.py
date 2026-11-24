@@ -257,6 +257,8 @@ def classify_book(pages: list, cfg: dict) -> tuple:
             centred = fill < 0.15 and 0.3 < (ln.x0 - lx) / w < 0.7
             if (_SERIAL_ONLY.match(light) or (half and centred)) and 0 < i < n - 1 and not marks:
                 t.kind = "heading"               # "(२)", "[२३]" inside the page: a Kruti serial
+            elif re.fullmatch(r"\s*\d{1,3}\s*[.]?\s*", light) and centred and 2 <= i < n - 2 and not marks:
+                t.kind = "heading"               # "१२" centred between Kruti, away from the page edges
             elif _is_page_furniture(light, repeated, edge=i < 2 or i >= n - 2) or (
                     (p.page, i) in edge_furniture):
                 t.kind = "furniture"
@@ -609,6 +611,10 @@ def _convention_headings(lines, cfg, title_keys):
     likh = {key_only(w) for w in cfg["likhyate_words"]}
     body = [t for t in lines if t.kind != "furniture"]
     for i, t in enumerate(body):
+        bare = t.kind == "heading" and re.fullmatch(r"\s*(\d{1,3})\s*[.]?\s*", t.light)
+        if bare and i + 1 < len(body) and int(bare.group(1)) in [n for _, n in body[i + 1].marks]:
+            t.kind = "furniture"         # "१" above "…वन आयो…१…": the gatha's number again
+            continue
         if t.kind not in ("verse", "prose", "note"):
             continue
         if t.marks and any(n is not None for _, n in t.marks):

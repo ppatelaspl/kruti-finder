@@ -602,3 +602,19 @@ def test_modern_likhte_in_prose_is_not_a_heading():
     pages = [page(1, PROSE[:3] + [line] + [("धन धन दिन मुझ आज नो रे", 90, 250),
                                             ("दोष सकल दूरे गया रे ॥5॥", 90, 250)] + PROSE[:3])]
     assert kind_of(pages, line[0]) != "heading"
+
+
+def test_centred_bare_number_between_kruti_is_a_serial_heading():
+    """"१२" centred between two Kruti, not at the page's top or bottom: a Kruti serial."""
+    rows = [("मथाळुं", 180, 240)] + PREV_END + [("१२", 205, 215, 1.5)] + NEXT + PREV_END[:1] + [("४३", 205, 215)]
+    lines, _ = classify_book([page(1, rows)], CFG)
+    kinds_ = {ln.text: ln.kind for ln in lines}
+    assert kinds_["१२"] == "heading"
+    assert kinds_["४३"] != "heading"            # the page number at the bottom
+
+
+def test_centred_number_inside_an_open_gatha_is_not_a_serial():
+    rows = [("मथाळुं", 180, 240)] + PREV_END + [("शासन नायक वीरजी, पन केवल पायो,", LEFT, 300),
+                                               ("१", 205, 215), ("संघ चतुविध स्थापवा, महसेन वन आयो ॥1॥", LEFT, 330)] + NEXT
+    lines, _ = classify_book([page(1, rows)], CFG)
+    assert {ln.text: ln.kind for ln in lines}["१"] != "heading"
