@@ -679,3 +679,23 @@ def test_inline_heading_after_ocr_debris_is_split_off():
     lines, _ = classify_book([page(1, PREV_END + [line] + NEXT)], CFG)
     heads = [t.text for t in lines if t.kind == "heading"]
     assert heads and "चोथुं" in heads[0] and "जलांजी" not in heads[0]
+
+
+def test_refrain_cue_alone_on_a_line_is_not_the_next_gathas_first_line():
+    """"जगमे . ।।" after a stanza: the refrain cue closes it; the next gatha starts after."""
+    from kruti.gatha import split_gathas
+    rows = [("भजन ६२", 180, 240),
+            ("जग में जीवन थोरा, रे अज्ञानी जागि ।।टेक ।।", 90, 300),
+            ("जनम ताड तरुवर पडे, फल संसारी जीव ।", 90, 300),
+            ("मौत महीमें आय है, और न लखै सदीव ।।१।।", 90, 300),
+            ("जगमे . ।।", 90, 140),
+            ("गिर-सिर दिवला जोइया, चहुंदिशि बाजे पौन ।", 90, 300),
+            ("बलत अचंभा मानिया, बुझत अचंभा कौन ।", 90, 300),
+            ("जगमें . ।।", 90, 140),
+            ("जो छिन जाय सो आयु में, निशि दिन ढूकै काल ।", 90, 300),
+            ("बाँधि सके तो है भला, पानी पहिली पाल ।।३।।", 90, 300)]
+    ks = split_gathas(classify_book([page(1, PREV_END + rows)], CFG)[0], CFG)
+    firsts = [g.first for k in ks for g in k.gathas]
+    assert "जगमे . ।।" not in firsts and "जगमें . ।।" not in firsts
+    assert "गिर-सिर दिवला जोइया, चहुंदिशि बाजे पौन ।" in firsts
+    assert "जो छिन जाय सो आयु में, निशि दिन ढूकै काल ।" in firsts

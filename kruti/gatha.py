@@ -80,14 +80,18 @@ def _pieces(t) -> list:
     before = core[:cue.start()].rstrip() if cue else ""
     ends = bool(cue) and not before.endswith((",", ";"))     # "…सिरदार; ऐसें०" is a half-line
     marks = t.marks or ([(len(t.text), None)] if ends else [])
+    from .gatha_lines import _is_cue_line, light_normalize
     out, start = [], 0
     for end, number in marks:
         piece = t.text[start:end].strip()
+        if piece and number is None and out and _is_cue_line(light_normalize(piece)):
+            start = end                    # "॥१ ॥जगमे . ।": the refrain cue after the number
+            continue
         if piece:                          # a mark alone ("४।।") still closes its gatha
             out.append(_Piece(t, piece, number, True))
         start = end
     rest = t.text[start:].lstrip(" ।॥|").strip()
-    if rest and any(c.isalpha() for c in rest):
+    if rest and any(c.isalpha() for c in rest) and not (out and _is_cue_line(light_normalize(rest))):
         out.append(_Piece(t, rest))
     return out
 

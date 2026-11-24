@@ -290,6 +290,7 @@ def classify_book(pages: list, cfg: dict) -> tuple:
     _continuations(out, cfg)
     _boundary_headings(out, title_keys)
     _convention_headings(out, cfg, title_keys)
+    _cue_lines(out, cfg)
     _sequence_marks(out)
     _numbered_glosses(out)
     _headings_need_verse(out)
@@ -662,6 +663,30 @@ def _convention_headings(lines, cfg, title_keys):
         if (nxt is not None and nxt.kind == "tune" and t.kind == "verse" and not t.marks
                 and len(words) <= 8 and not re.search(r"[;।॥]", core) and t.fill < 0.8):
             t.kind = "heading"
+
+
+def _is_cue_line(light: str, cfg=None) -> bool:
+    """"जगमे . ।।", "जपि. ।।", "टेक |", "नैन. ॥": only a refrain cue - the refrain's first
+    word cut short - printed after a stanza."""
+    core = re.sub(r"[।॥|()\[\]\s]+", " ", light).strip()
+    words = core.replace(".", " ").split()
+    if not words or len(words) > 2 or sum(c.isalpha() for c in core) > 10 or re.search(r"\d", core):
+        return False
+    refrain = {key_only(w) for w in (cfg or GATHA_DEFAULTS)["refrain_words"]}
+    return "." in core or "०" in core or all(key_only(w) in refrain for w in words)
+
+
+def _cue_lines(lines, cfg):
+    """A line holding only a refrain cue ends the stanza above it; it is no gatha's line."""
+    body = [t for t in lines if t.kind != "furniture"]
+    for i, t in enumerate(body):
+        if t.kind not in ("verse", "prose") or not _is_cue_line(t.light, cfg):
+            continue
+        t.kind = "note"
+        prev = body[i - 1] if i else None
+        if prev is not None and prev.kind == "verse" and not prev.marks:
+            prev.marks = [(len(prev.text.rstrip()), None)]
+        t.marks = []
 
 
 _LINE_END_NUMBER = re.compile(r"(?<=\s)(\d{1,2})\s*[.,;]?\s*$")

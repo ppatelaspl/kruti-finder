@@ -404,3 +404,12 @@ def test_unnumbered_stanzas_end_at_a_repeated_refrain_word():
             "ઉંચાં દેરાં ચાંદીના રે વામા, ઉગમણે દરબારરે. સવા."]
     g = gathas([L("શ્રી સિદ્ધાચલ સ્તવન", "heading")] + [L(r) for r in rows])
     assert [(x.first, x.last) for x in g] == [(rows[0], rows[1])] + [(r, r) for r in rows[2:]]
+
+
+def test_refrain_cue_after_the_number_does_not_start_the_next_gatha():
+    """"…सदीव ।।१ ।।जगमे . |": the cue after the number is no part of gatha 2."""
+    rows = [L("जनम ताड तरुवर पडे, फल संसारी जीव।"), L("मौत महीमें आय है, और न लखै सदीव ।।१ ।।जगमे . |"),
+            L("गिर-सिर दिवला जोइया, चहुंदिशि बाजे पौन ।"), L("बलत अचंभा मानिया, बुझत अचंभा कौन ।।२ ।।जगमें . । ।"),
+            L("जो छिन जाय सो आयु, निशि दिन ढूकै काल ।"), L("बाँधि सके तो है भला, पानी पहिली पाल ।। ३ ।।जगमे .।।")]
+    g = gathas([L("भजन ६२", "heading")] + rows)
+    assert [x.first for x in g] == [rows[0].text, rows[2].text, rows[4].text]
