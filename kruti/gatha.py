@@ -75,7 +75,11 @@ def _pieces(t) -> list:
     """A verse line cut at its verse marks. A line ending in a refrain cue (… મનડુ'૦)
     whose number was lost still ends its gatha."""
     from .gatha_lines import _REFRAIN_CUE, _core
-    marks = t.marks or ([(len(t.text), None)] if _REFRAIN_CUE.search(_core(t.light)) else [])
+    core = _core(t.light)
+    cue = _REFRAIN_CUE.search(core)
+    before = core[:cue.start()].rstrip() if cue else ""
+    ends = bool(cue) and not before.endswith((",", ";"))     # "…सिरदार; ऐसें०" is a half-line
+    marks = t.marks or ([(len(t.text), None)] if ends else [])
     out, start = [], 0
     for end, number in marks:
         piece = t.text[start:end].strip()

@@ -296,3 +296,12 @@ def test_prose_without_an_opener_ends_a_kruti():
     def quote(a):
         return [x for i in range(a, a + 3) for x in (L(f"पद {i} पहली पंक्ति ।"), L(f"पद {i} दूसरी पंक्ति ॥{i}॥"))]
     assert split_gathas(prose(3) + quote(3) + prose(4) + quote(7) + prose(3) + quote(2) + prose(2), CFG) == []
+
+
+def test_refrain_cue_after_a_semicolon_does_not_end_the_gatha():
+    rows = []
+    for i in range(1, 4):
+        rows += [L(f"पद {i} पहली पंक्ति सिरदार; ऐसें०।"), L(f"पद {i} दूसरी पंक्ति विचार।।एसें०।।{i}॥")]
+    g = gathas([L("होरी", "heading")] + rows)
+    assert [x.no for x in g] == ["1", "2", "3"]
+    assert g[1].first == "पद 2 पहली पंक्ति सिरदार; ऐसें०।"
