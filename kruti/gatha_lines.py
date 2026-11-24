@@ -112,7 +112,7 @@ _AFTER_STOP_LETTER = re.compile(r"[^\s\d.।॥;][.।॥;]\s*(?:र|रू|प|
 # "… आज० २. सुण…", "… प्रभु० ३ चोथे…": a refrain cue, then the verse number, inside a line
 _CUE_NUMBER = re.compile(r"(?<=[^\s\d.।॥0])0\s*(\d{1,2})\s*\.?(?=\s|$)")
 _CUE_LETTER = re.compile(r"(?<=[^\s\d.।॥0])0\s*[रपछ]\s*\.(?=\s|$)")         # "आज० છ.": ૭ as a letter
-_FOOTNOTES = re.compile(r"(?:^|\s)\d{1,2}\.\s*[^\s\d]")
+_FOOTNOTES = re.compile(r"(?:^|\s)\d{1,2}\s*[.\-–]\s*[^\s\d.\-]")
 _NUM_DANDA = re.compile(r"(?:(?<=\s)|^)(\d{1,3})\s*[।॥]+")      # "४।।": ॥४॥ missing its first ॥
 _DANDA_NUM = re.compile(r"[।॥]+\s*(\d{1,3})\s*(?:[।॥)]+|(?=\s*$))")   # "।।३॥", "॥१", "॥११)।"
 
@@ -346,7 +346,8 @@ def _is_note(light: str, cfg) -> bool:
         return True
     if "ॐ" in light and re.search(r"नमः|नमो|स्वाहा|णमो", light):
         return True                     # "ॐ ह्रीं … नमः ॥५॥": a numbered mantra, not a gatha
-    return len(_FOOTNOTES.findall(light)) >= 2 and not re.search(r"[,;]", light)
+    hits = _FOOTNOTES.findall(light)
+    return len(hits) >= 3 or (len(hits) >= 2 and not re.search(r"[,;]", light))
 
 
 def _debris(light: str, conf: float, cfg) -> bool:

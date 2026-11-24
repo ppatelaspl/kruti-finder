@@ -484,3 +484,8 @@ def test_number_with_a_missing_closing_danda_is_a_mark():
                  ("जयराम मुनिश्र, सिद्ध थया नही होय ॥ भवि० ॥११)।", 11)):
         lines, _ = classify_book([page(1, [(t, 60, 350)])], CFG)
         assert [m for _, m in lines[0].marks] == [n], t
+
+
+def test_dash_style_footnotes_are_notes():
+    t = "૧-વૃક્ષ, ૨-સુંદર 3-ચાલ્યો ગયો છે વિકાર જેનો."
+    assert kind_of([gpage(1, SAJ[:2] + [(t, 60, 250, 85)] + SAJ[:2])], t) == "note"

@@ -412,7 +412,9 @@ def _drop_stray_marks(lines) -> None:
     # more of them than numbers are missing) are not verse marks
     known = [i for i, n in enumerate(nums) if n is not None and i not in drop]
     for a, b in zip([-1] + known, known):
-        empties = [i for i in range(a + 1, b) if nums[i] is None and i not in drop]
+        # only empty danda pairs ("लाल।।") - a garbled digit ("… नाम रे. પ") is a real mark
+        empties = [i for i in range(a + 1, b) if nums[i] is None and i not in drop
+                   and marks[i][0].text[:marks[i][0].marks[marks[i][1]][0]].rstrip()[-1:] in "।॥|"]
         if not empties:
             continue
         lo = nums[a] if a >= 0 else 0

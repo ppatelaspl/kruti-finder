@@ -327,3 +327,11 @@ def test_last_piece_of_only_a_cue_and_number_joins_the_line_before():
             L("पद दो दूसरी पंक्ति काया रे."), L("आज० 2. पद तीन पहली रे,"), L("पद तीन दूसरी रे. आज० 3.")]
     g = gathas([L("स्तवन", "heading")] + rows)
     assert g[1].last == "पद दो दूसरी पंक्ति काया रे. आज० 2."
+
+
+def test_garbled_last_number_before_the_next_kruti_is_kept():
+    lines = numbered(4)
+    lines += [L("પદ 5 ક રે,"), L("બોલતાં બેસતા સાંભરે રે, ખિમાવિજય જિન નામ રે. પ")]
+    lines += numbered(3, "બીજું")
+    ks = split_gathas([L("સ્તવન", "heading")] + lines, CFG)
+    assert [len(k.gathas) for k in ks] == [5, 3]
