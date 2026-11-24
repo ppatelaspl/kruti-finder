@@ -108,6 +108,7 @@ _END_GARBLED = re.compile(r"0\s+[रपछ]\s*\.?\s*$")
 _AFTER_STOP_NUMBER = re.compile(r"[^\s\d.।॥;][.।॥;]\s*(\d{1,3})\s*\.?\s*$")
 # "…जिनेश्वरं...२नेव्‌", ". . .४नेवु", ". . . ५. . .": a number after dots, a cue glued on
 _DOTS_NUMBER = re.compile(r"(?:\.\s*){2,}[-–]?\s*(\d{1,3})\s*[^\s\d.]{0,8}[\s.]*$")
+_AFTER_STOP_LETTER = re.compile(r"[^\s\d.।॥;][.।॥;]\s*(?:र|रू|प|छ)\s*$")
 _FOOTNOTES = re.compile(r"(?:^|\s)\d{1,2}\.\s*[^\s\d]")
 _NUM_DANDA = re.compile(r"(?:(?<=\s)|^)(\d{1,3})\s*[।॥]+")      # "४।।": ॥४॥ missing its first ॥
 _DANDA_NUM = re.compile(r"[।॥]+\s*(\d{1,3})\s*[।॥]+")              # "।।३॥": a number in doubled dandas
@@ -133,6 +134,8 @@ def _marks(pattern, text: str) -> list:
         m = _AFTER_STOP_NUMBER.search(mt)
         if m:
             found[m.end()] = int(m.group(1))
+        elif _AFTER_STOP_LETTER.search(mt):          # "… गणधार. રૂ": ૩ read as a letter
+            found[len(mt.rstrip())] = None
     if _STYLES["line_num"] in pattern.pattern and not found:
         m = _END_NUMBER_DOT.search(mt)
         if m:
@@ -142,7 +145,7 @@ def _marks(pattern, text: str) -> list:
     for m in _REFRAIN_MARK.finditer(mt):
         if not any(m.start() <= e <= m.end() for e in found):
             found[m.end()] = int(m.group(1))
-    marks = [(e, None if n == 0 else n) for e, n in sorted(found.items())]   # ०० is a cue
+    marks = [(e, n) for e, n in sorted(found.items()) if n != 0]   # ०, ०० is a refrain cue
     # "॥ ३१० ॥ ૧ ॥": a refrain cue read as a number right before the verse number
     keep = []
     for e, n in marks:
@@ -320,6 +323,8 @@ def _is_tune(light: str, cfg) -> bool:
     if _BRACKETED.match(light) and any(k in keys or any(x in k for x in keys if len(x) >= 3)
                                        for k in wk):
         return True                                  # "( मालिनी-छन्दः )"
+    if re.match(r"^\s*\(\s*\S{1,5}\s*[-–:]\s", light) and _BRACKETED.match(light.rstrip(" .")):
+        return True                                  # "(રાઝ - …)": राग misread, still a tune line
     return bool(re.search(r"[-–]\s*ए\s+देशी\W*$|देशी\W*$", light))  # "… -ए देशी"
 
 

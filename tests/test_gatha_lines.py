@@ -429,3 +429,18 @@ def test_short_centred_title_between_krutis():
     rows = VERSES + [(t, 160, 250), ("शासन नायक वीरजी, केवल पायो,", 60, 280),
                      ("संघ चतुविध स्थापवा, महसेन वन आयो...१...", 60, 340)]
     assert kind_of([page(1, PROSE + rows)], t) == "heading"
+
+
+def test_gujarati_letter_read_for_a_digit_after_a_stop_is_a_mark():
+    lines, _ = classify_book([page(1, [("अओहवी जिनवाणी, विजयदेव 'गणधार. રૂ", 60, 300)])], CFG)
+    assert [n for _, n in lines[0].marks] == [None]
+
+
+def test_bracketed_line_with_a_dash_after_a_short_word_is_a_tune_line():
+    t = "(રાઝ - शत्रुंजय मंडन ऋषभ जिणंद दयाल.)"
+    assert kind_of([page(1, VERSES + [(t, 100, 300)] + VERSES)], t) == "tune"
+
+
+def test_zero_cue_alone_is_no_mark():
+    lines, _ = classify_book([page(1, [("नन) \"(न्न 0", 100, 200)])], CFG)
+    assert lines[0].marks == []
