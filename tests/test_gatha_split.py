@@ -15,7 +15,8 @@ _PAT = verse_pattern("")
 def L(text, kind="verse", page=1, gap=0.0, conf=90.0, indent=0.1, source="ocr"):
     from kruti.gatha_lines import _number
     marks = [(m.end(), _number(m)) for m in _PAT.finditer(mark_text(text))] if kind == "verse" else []
-    return TLine(page, text, text, kind, conf, source, gap, indent, 0.6, marks)
+    from kruti.normalize import light_normalize
+    return TLine(page, text, light_normalize(text), kind, conf, source, gap, indent, 0.6, marks)
 
 
 def gathas(lines):
@@ -226,3 +227,27 @@ def test_unnumbered_stanzas_end_at_their_refrain_cue():
     g = gathas([L("ગૌતમસ્વામીનું સ્તવન", "heading")] + [L(r) for r in rows])
     assert [(x.first, x.last) for x in g] == [(rows[0], rows[2]), (rows[3], rows[5]), (rows[6], rows[8])]
     assert all(x.how == "No number - gap" for x in g)
+
+
+def test_restart_after_a_named_part_is_the_next_part():
+    lines = [L("( દોહા )", "part")] + numbered(3) + numbered(3, "ઢાલ")
+    ks = split_gathas([L("સંગ્રામ સોનીની સજઝાય", "heading")] + lines, CFG)
+    assert len(ks) == 1 and len(ks[0].gathas) == 6
+    assert ks[0].gathas[0].part == "( દોહા )" and ks[0].gathas[3].part != "( દોહા )"
+
+
+def test_refrain_cue_ending_a_gatha_whose_number_was_lost():
+    lines = []
+    for i in range(1, 6):
+        end = f"પદ {i} ખ રે. મનડુ'૦" + (f" ॥{i}॥" if i in (1, 5) else "")
+        lines += [L(f"પદ {i} ક રે;"), L(end)]
+    g = gathas([L("સજઝાય", "heading")] + lines)
+    assert [x.no for x in g] == ["1", "2", "3", "4", "5"]
+    assert g[2].first == "પદ 3 ક રે;"
+
+
+def test_restart_inside_a_named_part_even_when_the_next_number_is_garbled():
+    lines = [L("( દોહા )", "part")] + numbered(3) + numbered(4, "ઢાલ")
+    lines[9] = L("ઢાલ 2 ખ ર")                      # gatha 2 of the dhal: number OCR'd as ર
+    ks = split_gathas([L("સંગ્રામ સોનીની સજઝાય", "heading")] + lines, CFG)
+    assert len(ks) == 1

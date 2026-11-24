@@ -98,7 +98,7 @@ _REFRAIN_MARK = re.compile(r"[।॥]\s*[^\s\d।॥][^\d।॥]{0,15}?0\s*(\d{1
 
 
 # books numbering verses at the line end: "… મારગ૦ ૪." and OCR's letters for digits (છ = ૭)
-_END_NUMBER_DOT = re.compile(r"(?<=\S\s)(\d{1,3})\s*\.\s*$")
+_END_NUMBER_DOT = re.compile(r"(?:(?<=\S\s)|(?<=\s\.))(\d{1,3})\s*\.?\s*$")
 _END_GARBLED = re.compile(r"0\s+[रपछ]\s*\.?\s*$")
 
 
@@ -181,7 +181,9 @@ def classify_book(pages: list, cfg: dict) -> tuple:
             marks = _marks(pattern, text)
             t = TLine(p.page, text, light, "", ln.conf, p.source, gap,
                       (ln.x0 - lx) / w, (ln.x1 - ln.x0) / w, marks)
-            if _is_page_furniture(light, repeated, edge=i < 2 or i >= n - 2) or (
+            if _SERIAL_ONLY.match(light) and 0 < i < n - 1 and not marks:
+                t.kind = "heading"               # "(२)", "[२३]" inside the page: a Kruti serial
+            elif _is_page_furniture(light, repeated, edge=i < 2 or i >= n - 2) or (
                     (p.page, i) in edge_furniture):
                 t.kind = "furniture"
             page_lines.append(t)
@@ -273,7 +275,7 @@ def _is_tune(light: str, cfg) -> bool:
     keys = {key_only(w) for w in cfg["tune_words"]}
     refrain = {key_only(w) for w in cfg["refrain_words"]}
     wk = [key_only(w) for w in words]
-    if all(k in refrain or not k for k in wk):
+    if any(wk) and all(k in refrain or not k for k in wk):
         return True                                  # "आंकणी", "॥ टेक ॥"
     if len(words) > 10:
         return False
@@ -347,6 +349,7 @@ def _first_pass(lines, cfg, title_keys, section_keys):
             t.kind = "prose" if _prose_score(t, cfg) > _verse_score(t, cfg) else "verse"
 
 
+_SERIAL_ONLY = re.compile(r"^[\s।॥|`'\"]*[(\[]\s*[\dA-Za-z\u0900-\u0aff]{1,3}\s*[)\]][\s।॥|.]*$")
 _QUOTED = re.compile(r"[।॥]\s*[”\"’]")
 _SERIAL_START = re.compile(r"^[\s।॥]*(\(\s*\S{1,3}\s*\)|\d{1,4}\s*[.)]|\d{1,4}\s)\s*")
 
@@ -359,11 +362,14 @@ def _heading_shape(light: str, title_keys, t: TLine, cfg) -> bool:
     serial = _SERIAL_START.match(light)
     phrase = light[serial.end():] if serial else light
     words = phrase.split()                      # OCR debris around a framed title
-    while words and sum(c.isalpha() for c in words[0]) <= 1:
+    while len(words) > 1 and sum(c.isalpha() for c in words[0]) <= 1:
         words.pop(0)
-    while words and sum(c.isalpha() for c in words[-1].strip(",.")) <= 2 and len(words) > 2:
-        words.pop()
-    phrase = " ".join(words).strip(" .,:-–।॥\"'“”")
+    phrase = " ".join(words)
+    if "," in phrase:                           # "… સજઝાય, રર": debris after a comma
+        head, tail = phrase.rsplit(",", 1)
+        if len(tail.split()) <= 2 and all(sum(c.isalpha() for c in w) <= 2 for w in tail.split()):
+            phrase = head
+    phrase = phrase.strip(" .,:-–।॥\"'“”")
     phrase = re.sub(r"\s*\([^)]*\)?\s*$", "", phrase) or phrase
     if not phrase or "," in phrase or len(phrase.split()) > 8:
         return False
@@ -463,7 +469,8 @@ def _boundary_headings(lines, title_keys):
             continue
         prev, nxt = (body[i - 1] if i else None), body[i + 1]
         at_boundary = (prev is None or prev.kind != "verse" or bool(prev.marks)
-                       or bool(_REFRAIN_CUE.search(_core(prev.light))))
+                       or bool(_REFRAIN_CUE.search(_core(prev.light)))
+                       or bool(re.search(r"\d\W*$", prev.light)))       # "… .૧૯"
         if at_boundary and nxt.kind == "verse":
             t.kind = "heading"
 

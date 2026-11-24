@@ -298,3 +298,22 @@ def test_wide_lines_ending_in_a_verse_particle_are_verse():
 def test_verse_line_starting_with_raag_is_not_a_tune_line():
     t = "રાગ હોત ન કેવળજ્ઞાન રે....મ્હાશ."
     assert kind_of([gpage(1, PAJ[:2] + [(t, 160, 330, 85)])], t) == "verse"
+
+
+def test_short_centred_verse_line_is_not_a_heading():
+    rows = [("“પહેલો ગણુધર पीरने। રે", 60, 190, 85), ("શાસનને શણુગાર", 60, 150, 85),
+            ("ગૌતમ ગોત્ર તણ્‌। ધણી રે", 170, 295, 85), ("ગુણુમણી રયછે ભડાર", 170, 270, 85)]
+    pages = [gpage(1, [("શ્રી ગૌતમસ્વામીનુ' સ્તવન", 150, 280, 85)] + rows + PAJ)]
+    assert kind_of(pages, "ગૌતમ ગોત્ર તણ્‌। ધણી રે") == "verse"
+
+
+def test_bracketed_serial_alone_starts_a_kruti():
+    pages = [gpage(1, PAJ[:3] + [("॥ (२)", 180, 220, 85)] + PAJ[3:])]
+    assert kind_of(pages, "॥ (२)") == "heading"
+
+
+def test_heading_after_a_gatha_whose_number_has_a_dot():
+    t = "દેવકીના છ પુત્રની સજઝાય અથવા છ સાધુની"
+    rows = [("સકલ.” વાચક . શિરોમણી, ભાનુચ'દ્ર કહાવે; ` „~:", 60, 310, 84),
+            ("તસ શિષ્ય ભાણુચ'દ્ર ભણે, ભણે દોલત પાવે. प्ये .૧૯", 60, 330, 87)]
+    assert kind_of([gpage(1, rows + [(t, 70, 260, 88)] + SAJ[:2])], t) == "heading"

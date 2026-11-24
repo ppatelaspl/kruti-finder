@@ -69,9 +69,12 @@ def confidence(g: Gatha, low_ocr: float) -> str:
 
 # ---------------------------------------------------------------- phase A: Kruti units
 def _pieces(t) -> list:
-    """A verse line cut at its verse marks."""
+    """A verse line cut at its verse marks. A line ending in a refrain cue (… મનડુ'૦)
+    whose number was lost still ends its gatha."""
+    from .gatha_lines import _REFRAIN_CUE, _core
+    marks = t.marks or ([(len(t.text), None)] if _REFRAIN_CUE.search(_core(t.light)) else [])
     out, start = [], 0
-    for end, number in t.marks:
+    for end, number in marks:
         piece = t.text[start:end].strip()
         if re.search(r"\w", re.sub(r"[\d\s।॥|]", "", piece)) or out:
             out.append(_Piece(t, piece, number, True))
@@ -87,16 +90,16 @@ def _pieces(t) -> list:
 def _units(lines, cfg) -> list:
     units, cur = [], _Unit()
     title_open = False                     # consecutive heading lines make one title
-    last_no, part_since = 0, False
+    last_no, part_since, part_label = 0, False, ""
     prose_from = None                      # page where the current prose run started
     pending_start = 0                      # index in cur.items where the open gatha began
     prose_since_mark = False
 
     def close():
-        nonlocal cur, last_no, part_since
+        nonlocal cur, last_no, part_since, part_label
         if any(isinstance(x, _Piece) for x in cur.items):
             units.append(cur)
-        cur, last_no, part_since = _Unit(), 0, False
+        cur, last_no, part_since, part_label = _Unit(), 0, False, ""
 
     verse_lines = [t for t in lines if t.kind == "verse"]
     upcoming = {id(t): i for i, t in enumerate(verse_lines)}
@@ -125,7 +128,8 @@ def _units(lines, cfg) -> list:
             title_open = False
             continue
         if t.kind == "part":
-            cur.items.append(("part", t.text.strip(" ।॥|:-")))
+            part_label = t.text.strip(" ।॥|:-")
+            cur.items.append(("part", part_label))
             part_since, title_open, last_no = True, False, 0
             pending_start = len(cur.items)
             continue
@@ -157,7 +161,11 @@ def _units(lines, cfg) -> list:
             if p.marked and p.number == 1 and last_no >= 2 and not part_since:
                 after = [n for n in next_numbers(t, 4) if n is not None]
                 after = after[after.index(1) + 1:] if 1 in after else after
-                if not after or after[0] in (2, None) or after[0] != last_no + 2:
+                if part_label:
+                    # inside a named part (દોહા): its next part, whose heading OCR lost
+                    cur.items.insert(pending_start, ("part", ""))
+                    part_label = ""
+                elif not after or after[0] in (2, None) or after[0] != last_no + 2:
                     # verses restart at 1: a new Kruti begins with the open gatha
                     carried = [x for x in cur.items[pending_start:] if isinstance(x, _Piece)]
                     cur.items = cur.items[:pending_start]
