@@ -119,6 +119,8 @@ _DOTS_NUMBER = re.compile(r"(?:\.\s*){2,}[-–]?\s*(\d{1,3})\s*[^\s\d.]{0,8}[\s.
 _AFTER_STOP_LETTER = re.compile(r"[^\s\d.।॥;][.।॥]\s*(?:र|रू|प|छ)\s*$")
 # "… आज० २. सुण…", "… प्रभु० ३ चोथे…": a refrain cue, then the verse number, inside a line
 _CUE_NUMBER = re.compile(r"(?<=[^\s\d.।॥0])0\s*(\d{1,2})\s*\.?(?=\s|$)")
+_DANDA_LETTER = re.compile(r"[।॥]+\s*[^\W\d_][\u093e-\u094d\u0abe-\u0acd]?\s*[।॥]+")
+_INLINE_PART = re.compile(r"^\s*[।॥]*\s*(\S+?)\s*[।॥]*\s*\d{1,2}\s*[।॥]+\s*(?=\S)")   # "॥ ढाल ॥ २॥ …"
 _CUE_LETTER = re.compile(r"(?<=[^\s\d.।॥0])0\s*[रपछ]\s*\.(?=\s|$)")         # "आज० છ.": ૭ as a letter
 # "… લાગીરે. સ્હાવ ૧૩. …", "… સા પ. …": a short refrain cue (its ० misread), number, stop
 _CUE_WORD_NUMBER = re.compile(r"(?<=\s)[^\s\d]{1,6}\s+(\d{1,2})\s*\.(?=\s|$)")
@@ -139,6 +141,9 @@ def _marks(pattern, text: str) -> list:
             for e in inside:
                 del found[e]
             found[m.end()] = int(m.group(1))
+    for m in _DANDA_LETTER.finditer(mt):         # "॥ ર ॥": a gatha number OCR'd as a letter
+        if not any(m.start() <= e <= m.end() + 2 for e in found):
+            found[m.end()] = None
     if not any(n is not None for n in found.values()):
         m = _DOTS_NUMBER.search(mt)
         if m:
@@ -217,6 +222,7 @@ def _text_box(pages):
 def classify_book(pages: list, cfg: dict) -> tuple:
     """(TLines in reading order for the whole book, {PDF page: printed page})."""
     title_keys = [key_only(t) for t in cfg.get("title_keywords", []) if key_only(t)]
+    part_keys = {key_only(t) for t in cfg.get("section_keywords", []) if key_only(t)}
     section_keys = _Parts([key_only(t) for t in cfg.get("section_keywords", []) if key_only(t)],
                           [key_only(t) for t in cfg.get("part_ordinals", []) if key_only(t)],
                           title_keys)
@@ -241,6 +247,13 @@ def classify_book(pages: list, cfg: dict) -> tuple:
             prev = ln
             w = width or (p.width * 0.8) or 1.0
             lx = left.get(p.page % 2, 0) if width else 0
+            part = _INLINE_PART.match(mark_text(text))
+            if part and key_only(part.group(1)) in part_keys and len(text) - part.end() > 12:
+                cut = part.end()
+                page_lines.append(TLine(p.page, text[:cut].strip(), light_normalize(text[:cut]).strip(),
+                                        "part", ln.conf, p.source, gap, (ln.x0 - lx) / w,
+                                        cut / max(1, len(text)) * (ln.x1 - ln.x0) / w, []))
+                text, light, gap = text[cut:], light_normalize(text[cut:]), 0.0
             head = _INLINE_HEAD.match(mark_text(text))
             if head and key_only(head.group(1)) in title_keys and len(text) - head.end() > 12:
                 cut = head.end()            # same offsets in text and mark_text

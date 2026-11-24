@@ -643,3 +643,20 @@ def test_bracketed_serial_alone_after_a_gatha_is_not_an_explanation_end():
             ("શ્રી વિમલ જિન સ્તવન", 150, 260)] + NEXT
     lines, _ = classify_book([page(1, PREV_END + rows)], CFG)
     assert not any(t.gloss for t in lines)
+
+
+def test_single_letter_between_dandas_is_a_lost_gatha_number():
+    """"… नारी तो ॥ भवि° ॥ ર ॥": OCR read ૩ as a letter; it still ends the gatha."""
+    rows = [("पार्श्वनाथ स्तवन", 150, 260), ("क्य प्रभु आवीयाजी, वरीया प्रभावती नारी तो ॥ भवि० ॥ ર ॥", LEFT, 355)]
+    lines, _ = classify_book([page(1, PREV_END + rows + NEXT)], CFG)
+    t = next(t for t in lines if "प्रभावती" in t.text)
+    assert t.marks and t.marks[-1][1] is None
+
+
+def test_part_heading_at_the_start_of_a_line_is_split_off():
+    """"॥ ढाल ॥ २॥ सोरीपुर नगर …": the part heading, then the first gatha line."""
+    rows = [("॥ ढाल ॥ २॥ सोरीपुर नगर सोहामणुं, जग जीवनारे नेम ॥", LEFT, 355)]
+    lines, _ = classify_book([page(1, PREV_END + rows + NEXT)], CFG)
+    got = [(t.text, t.kind) for t in lines if "ढाल" in t.text or "सोरीपुर" in t.text]
+    assert got[0][1] == "part" and "सोरीपुर" not in got[0][0]
+    assert got[1][0].startswith("सोरीपुर") and got[1][1] == "verse" and not got[1][1] == "part"
