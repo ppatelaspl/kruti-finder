@@ -100,10 +100,12 @@ How found, Confidence, Check, Remarks.
 - **Medium:** the gatha was split without a printed number (refrain, spacing, couplets), or one warning.
 - **Low:** split only by line count, low OCR quality, or several warnings (see *Check*).
 
-Accuracy: on the 28 labelled sample books the rules were tuned on, about 89% of gathas are found
-and 82% of first lines and 80% of last lines are correct. On books it was **not** tuned on it is
-lower: about 78% / 67% / 58% on clean modern prints, and much lower on old, low-resolution or
-damaged scans. Filter on *Confidence* and *Check* and review rows before using them.
+Accuracy, measured on 7 books the tool had never seen: about 74% of gathas found, 56% of first
+lines and 65% of last lines correct. It varies by book: clean modern prints score far higher
+(up to 95%+), while mixed-language stotras, unnumbered puja couplets and old or damaged scans
+score lower. Gatha Lines drafts the rows for a reviewer: filter on *Confidence* and *Check*
+and review rows before using them. Two book pages printed side by side on one PDF page
+are read as two pages.
 
 Command line: `python gatha_finder.py --books ./books --out ./output`
 
