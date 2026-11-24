@@ -13,8 +13,8 @@ _PAT = verse_pattern("")
 
 
 def L(text, kind="verse", page=1, gap=0.0, conf=90.0, indent=0.1, source="ocr"):
-    from kruti.gatha_lines import _number
-    marks = [(m.end(), _number(m)) for m in _PAT.finditer(mark_text(text))] if kind == "verse" else []
+    from kruti.gatha_lines import _marks
+    marks = _marks(_PAT, text) if kind == "verse" else []
     from kruti.normalize import light_normalize
     return TLine(page, text, light_normalize(text), kind, conf, source, gap, indent, 0.6, marks)
 
@@ -94,11 +94,11 @@ def test_misread_number_fixed_by_sequence():
 def test_unnumbered_by_gap():
     lines = []
     for i in range(4):
-        lines += [L(f"पंक्ति {i} क", gap=1.2 if i else 0.0), L(f"पंक्ति {i} ख")]
+        lines += [L(f"पंक्ति {i} क,", gap=1.2 if i else 0.0), L(f"पंक्ति {i} ख ।")]
     g = gathas([L("पद", "heading")] + lines)
     assert [x.no for x in g] == ["(1)", "(2)", "(3)", "(4)"]
     assert all(x.how == "No number - gap" for x in g)
-    assert (g[2].first, g[2].last) == ("पंक्ति 2 क", "पंक्ति 2 ख")
+    assert (g[2].first, g[2].last) == ("पंक्ति 2 क,", "पंक्ति 2 ख ।")
 
 
 def test_unnumbered_by_indent():
@@ -112,10 +112,10 @@ def test_unnumbered_by_indent():
 
 def test_unnumbered_by_line_count():
     ends = [",", ";", ",", "॥"] * 2
-    lines = [L(f"पंक्ति {i} {e}") for i, e in enumerate(ends)]
+    lines = [L(f"पंक्ति {'कखगघङचछज'[i]} {e}") for i, e in enumerate(ends)]
     g = gathas([L("पद", "heading")] + lines)
     assert len(g) == 2 and all(x.how == "No number - line count" for x in g)
-    assert (g[1].first, g[1].last) == ("पंक्ति 4 ,", "पंक्ति 7 ॥")
+    assert (g[1].first, g[1].last) == ("पंक्ति ङ ,", "पंक्ति ज ॥")
 
 
 def test_unnumbered_without_agreeing_ends_not_split():
@@ -251,3 +251,48 @@ def test_restart_inside_a_named_part_even_when_the_next_number_is_garbled():
     lines[9] = L("ઢાલ 2 ખ ર")                      # gatha 2 of the dhal: number OCR'd as ર
     ks = split_gathas([L("સંગ્રામ સોનીની સજઝાય", "heading")] + lines, CFG)
     assert len(ks) == 1
+
+
+def test_double_danda_at_every_half_line_is_not_a_verse_mark():
+    rows = []
+    for i in range(1, 4):
+        rows += [L(f"पद {i} पहली पंक्ति लाल।।"), L(f"पद {i} दूसरी पंक्ति लाल।।"), L(f"{i}।।")]
+    g = gathas([L("स्तवन", "heading")] + rows)
+    assert [x.no for x in g] == ["1", "2", "3"]
+    assert (g[1].first, g[1].last) == ("पद 2 पहली पंक्ति लाल।।", "पद 2 दूसरी पंक्ति लाल।। 2।।")
+
+
+# ---- found on the tuning book B052034's front matter (title page, biography, editor's note)
+def test_title_page_lines_are_not_unnumbered_gathas():
+    rows = ["आशीर्वाद", "आचार्य भगवंत श्री जिनमणिप्रभसूरिजी म.", "संपादक", "मूल्य : 50 रुपये",
+            "प्रतियाँ : 500", "प्रकाशन वर्ष : ईसवी सन्‌ 2016"]
+    lines = [L(r, gap=1.2 if i % 2 == 0 and i else 0.0) for i, r in enumerate(rows)]
+    assert split_gathas(lines, CFG) == []
+
+
+def test_verses_quoted_inside_a_biography_are_left_out():
+    prose = [L("उन्होंने इस विषय पर अनेक रचनाएँ कीं जिनमें से एक यह है", "prose")]
+    quote = [L("प्रभु दर्शन थी दर्शन होय, अतिनिर्मल तिम पावन होय ।"),
+             L("दर्शनथी दुःख जावे दूर, प्रगट हुवे सुख संपद पूर ।।3॥"),
+             L("एहथी दूर टले कुविचार, उपजे दिल आनंद अपार ।"),
+             L("उत्तम ध्यान नो कारण एह, तिम वलि सहज समाधि नो गेह।।4।")]
+    after = [L("इस प्रकार उनकी भक्ति प्रकट होती है और आगे वे लिखते हैं", "prose")]
+    assert split_gathas(prose + quote + after, CFG) == []
+
+
+def test_several_quotes_in_one_biography_are_all_left_out():
+    def prose(n):
+        return [L(f"उन्होंने अनेक रचनाएँ कीं और यह पंक्ति {i} है", "prose") for i in range(n)]
+    q1 = [L("प्रभु दर्शन थी दर्शन होय, पावन होय ।"), L("दर्शनथी दुःख जावे दूर, सुख पूर ।।3॥"),
+          L("एहथी दूर टले कुविचार, आनंद अपार ।"), L("उत्तम ध्यान नो कारण एह, गेह।।4।")]
+    q2 = [L("अनुभव दे दुय भेदनो रे, शुद्ध स्वरूप ।"), L("शुद्ध सदा मुझ दीजिये रे, विरूप ।।3॥।"),
+          L("सुध अनुभव थी संपजे रे, व्यवहार ।"), L("निरविध ने तेहथी मले रे, सुखकार ।।4॥")]
+    assert split_gathas(prose(3) + q1 + prose(4) + q2 + prose(2), CFG) == []
+
+
+def test_prose_without_an_opener_ends_a_kruti():
+    def prose(n):
+        return [L(f"उन्होंने अनेक रचनाएँ कीं और यह पंक्ति {i} है", "prose") for i in range(n)]
+    def quote(a):
+        return [x for i in range(a, a + 3) for x in (L(f"पद {i} पहली पंक्ति ।"), L(f"पद {i} दूसरी पंक्ति ॥{i}॥"))]
+    assert split_gathas(prose(3) + quote(3) + prose(4) + quote(7) + prose(3) + quote(2) + prose(2), CFG) == []

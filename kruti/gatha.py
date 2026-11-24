@@ -57,6 +57,9 @@ class _Piece:
 class _Unit:
     title: str = ""
     items: list = field(default_factory=list)   # _Piece, ("part", label) or ("prose",)
+    prose_before: bool = False     # running prose right before its first gatha
+    prose_after: bool = False      # … and right after its last one
+    commentary: bool = False       # its prose includes explanation openers (अर्थ--)
 
 
 def confidence(g: Gatha, low_ocr: float) -> str:
@@ -76,10 +79,8 @@ def _pieces(t) -> list:
     out, start = [], 0
     for end, number in marks:
         piece = t.text[start:end].strip()
-        if re.search(r"\w", re.sub(r"[\d\s।॥|]", "", piece)) or out:
+        if piece:                          # a mark alone ("४।।") still closes its gatha
             out.append(_Piece(t, piece, number, True))
-        elif out == [] and piece:          # a line starting with the previous gatha's mark
-            pass
         start = end
     rest = t.text[start:].lstrip(" ।॥|").strip()
     if rest and any(c.isalpha() for c in rest):
@@ -88,16 +89,20 @@ def _pieces(t) -> list:
 
 
 def _units(lines, cfg) -> list:
+    from .gatha_lines import explanation_opener
+    opener = explanation_opener(cfg)
     units, cur = [], _Unit()
     title_open = False                     # consecutive heading lines make one title
     last_no, part_since, part_label = 0, False, ""
     prose_from = None                      # page where the current prose run started
     pending_start = 0                      # index in cur.items where the open gatha began
     prose_since_mark = False
+    prose_lines, run_opener = 0, False        # the prose run just before this line
 
     def close():
         nonlocal cur, last_no, part_since, part_label
         if any(isinstance(x, _Piece) for x in cur.items):
+            cur.prose_after = cur.items[-1] == ("prose",)
             units.append(cur)
         cur, last_no, part_since, part_label = _Unit(), 0, False, ""
 
@@ -121,6 +126,7 @@ def _units(lines, cfg) -> list:
                 close()
                 cur.title = t.text.strip()
                 title_open = True
+                cur.prose_before = False
             prose_from = None
             continue
         if t.kind == "list":
@@ -135,6 +141,12 @@ def _units(lines, cfg) -> list:
             continue
         if t.kind == "prose":
             prose_since_mark = True
+            prose_lines += 1
+            if opener.match(t.light):
+                cur.commentary = True
+                run_opener = True
+            if not any(isinstance(x, _Piece) for x in cur.items):
+                cur.prose_before = True
             if prose_from is None:
                 prose_from = t.page
                 if any(isinstance(x, _Piece) for x in cur.items):
@@ -144,6 +156,10 @@ def _units(lines, cfg) -> list:
         if t.kind != "verse":
             continue                                   # tune, note, furniture
         title_open = False
+        if prose_from is not None and prose_lines >= 2 and not run_opener and not cur.commentary:
+            close()                     # running prose with no अर्थ/भावार्थ: not a commentary
+            cur.prose_before = True
+            pending_start = 0
         if prose_from is not None:
             nums = [n for n in next_numbers(t) if n is not None]
             continues = bool(nums) and last_no and nums[0] in (last_no + 1, last_no + 2)
@@ -151,6 +167,7 @@ def _units(lines, cfg) -> list:
                 close()
                 pending_start = 0
             prose_from = None
+        prose_lines, run_opener = 0, False
         for p in _pieces(t):
             if p.marked and p.number is not None and p.number == last_no and prose_since_mark:
                 # "… ए भाव ॥ ११ ॥": an explanation closing with the gatha's number
@@ -338,7 +355,10 @@ def _unit_gathas(unit, cfg) -> list:
                 part = x[1]
             elif x[0] == "prose":
                 prose_before = True
+        from .gatha_lines import verse_like
         for part, run, prose in blocks:
+            if sum(verse_like(x.line) for x in run) < cfg["min_verse_like"] * len(run):
+                continue                # a title page, an address: lines that end like no verse
             parts, how = _split_unnumbered(run, cfg)
             for i, ps in enumerate(parts or [], 1):
                 out.append(_gatha(part, f"({i})", ps, how, cfg, [C_PROSE] if prose and i == 1 else []))
@@ -377,6 +397,17 @@ def _drop_stray_marks(lines) -> None:
             drop.add(i)
             continue
         prev = n
+    # "…लाल।।" closing every half-line: empty marks between two consecutive numbers (or
+    # more of them than numbers are missing) are not verse marks
+    known = [i for i, n in enumerate(nums) if n is not None and i not in drop]
+    for a, b in zip([-1] + known, known):
+        empties = [i for i in range(a + 1, b) if nums[i] is None and i not in drop]
+        if not empties:
+            continue
+        lo = nums[a] if a >= 0 else 0
+        missing = nums[b] - lo - 1 if nums[b] > lo else nums[b] - 1
+        if len(empties) > max(0, missing):
+            drop.update(empties[:len(empties) - max(0, missing)])
     for i in sorted(drop, reverse=True):
         t, k = marks[i]
         t.marks = t.marks[:k] + t.marks[k + 1:]
@@ -390,6 +421,9 @@ def split_gathas(lines: list, cfg: dict) -> list:
         gathas = _unit_gathas(unit, cfg)
         if len(gathas) < 2:
             continue
+        if (not unit.title and unit.prose_before and unit.prose_after and not unit.commentary
+                and len(gathas) <= cfg["max_quote_gathas"]):
+            continue                    # verses quoted inside a preface or biography
         checks = [] if unit.title else [C_NO_HEADING]
         if statistics.median(g.lines for g in gathas) >= 2:
             for g in gathas:

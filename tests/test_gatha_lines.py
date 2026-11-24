@@ -317,3 +317,50 @@ def test_heading_after_a_gatha_whose_number_has_a_dot():
     rows = [("સકલ.” વાચક . શિરોમણી, ભાનુચ'દ્ર કહાવે; ` „~:", 60, 310, 84),
             ("તસ શિષ્ય ભાણુચ'દ્ર ભણે, ભણે દોલત પાવે. प्ये .૧૯", 60, 330, 87)]
     assert kind_of([gpage(1, rows + [(t, 70, 260, 88)] + SAJ[:2])], t) == "heading"
+
+
+def test_number_before_double_danda_is_a_mark():
+    lines, _ = classify_book([page(1, [("कहे शिवकीर्ति लाल।।", 100, 260), ("४।।", 100, 120)] + VERSES)], CFG)
+    assert [n for _, n in lines[1].marks] == [4]
+
+
+def test_number_between_doubled_dandas_is_a_mark():
+    t = "उपज्यो आनंद सवायो लाल।। अतिरूडु।।३॥"
+    lines, _ = classify_book([page(1, [("दुर्लभ प्रभु दरसण पायो,", 100, 260), (t, 100, 300)] + VERSES)], CFG)
+    assert lines[1].marks[-1] == (len(t), 3)       # the "।।" after लाल is pruned when splitting
+
+
+def test_wide_heading_ending_in_a_type_word():
+    t = "जिनदत्त-जिनकुशल-जिनभद्रसूरि स्तवन"
+    pages = [page(1, VERSES + [(t, 70, 330), ("(देशी- धीज धरे सीता सती रे लाल)", 90, 300)] + VERSES)]
+    assert kind_of(pages, t) == "heading"
+
+
+def test_unbracketed_source_note_is_note():
+    t = "खरतरगच्छ साहित्य कोश क्रमाक--2542"
+    assert kind_of([page(1, VERSES + [(t, 100, 300)] + VERSES)], t) == "note"
+
+
+def test_refrain_cue_with_full_stop_before_the_number_is_a_mark():
+    lines, _ = classify_book([page(1, [("राज आज मनोरथ सब फल्या, आज फली सहु आस ।हो.2।", 100, 330)])], CFG)
+    assert [n for _, n in lines[0].marks] == [2]
+
+
+def test_hindi_editorial_prose_is_prose():
+    rows = [("कोई साधु-साध्वी अपरिचित नहीं हो सकता। क्योकि गच्छ में दीक्षा", LEFT, RIGHT),
+            ("लेने वाले हर व्यक्ति को उनकी रचनाओं का परिचय दिया जाता", LEFT, RIGHT),
+            ("मेरी रुचि के कारण जब भी मुझे आपश्री की कोई रचना मिली", LEFT, RIGHT),
+            ("तो मैंने उसे लिख लिया था।", LEFT, 180)]
+    assert [k for _, k in kinds([page(1, rows)])] == ["prose"] * 4
+
+
+def test_short_hindi_prose_sentence_is_prose():
+    t = "इस उपासरे में आपकी प्रतिमा भी बिराजित है।"
+    assert kind_of([page(1, PROSE[:3] + [(t, LEFT, 280)] + PROSE[:2])], t) == "prose"
+
+
+def test_hyphenated_compound_is_not_an_explanation_opener():
+    from kruti.gatha_lines import explanation_opener
+    op = explanation_opener(CFG)
+    assert not op.match("अर्थ-बोध के लिये बुद्धि दौड़ाने का अवसर")
+    assert op.match("अर्थ--वरी केटलाक एम बोले छे") and op.match("भावार्थ- हे प्रभु") and op.match("अर्थ: हे")

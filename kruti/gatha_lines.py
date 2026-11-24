@@ -48,11 +48,14 @@ GATHA_DEFAULTS = {
     "index_headings": ["अनुक्रमणिका", "अनुक्रम", "विषयानुक्रम", "विषयानुक्रमणिका", "विषय-सूची",
                        "विषयसूची", "सूची", "अनुक्रमणिका:"],
     "smooth_window": 2,
+    "note_words": ["कोश", "क्रमांक", "क्रमाक", "ग्रंथांक", "पाठांतर", "पाठान्तर", "पाठभेद"],
     "junk_conf": 55,             # OCR confidence below which a line without verse
                                  # punctuation is a border/ornament read as letters
     "max_explanation_pages": 3,  # a longer prose run with no gatha after it ends the Kruti
     "gatha_gap": 0.8,            # an empty gap of this many line heights ends a gatha
     "long_gatha_lines": 8,
+    "max_quote_gathas": 6,       # a Kruti this short, without heading, inside prose: a quote
+    "min_verse_like": 0.35,       # share of an unnumbered block's lines that must end like verse
 }
 
 _DIGITS = str.maketrans("०१२३४५६७८९|", "0123456789।")
@@ -94,7 +97,7 @@ def mark_text(text: str) -> str:
 
 
 # "॥श्रीजिन०३॥": a refrain cue abbreviated with ० (a zero) before the verse number
-_REFRAIN_MARK = re.compile(r"[।॥]\s*[^\s\d।॥][^\d।॥]{0,15}?0\s*(\d{1,3})\s*(?:[।॥]+|(?=\s*$))")
+_REFRAIN_MARK = re.compile(r"[।॥]\s*[^\s\d।॥][^\d।॥]{0,15}?[0.]\s*(\d{1,3})\s*(?:[।॥]+|(?=\s*$))")
 
 
 # books numbering verses at the line end: "… મારગ૦ ૪." and OCR's letters for digits (છ = ૭)
@@ -102,10 +105,20 @@ _END_NUMBER_DOT = re.compile(r"(?:(?<=\S\s)|(?<=\s\.))(\d{1,3})\s*\.?\s*$")
 _END_GARBLED = re.compile(r"0\s+[रपछ]\s*\.?\s*$")
 
 
+_NUM_DANDA = re.compile(r"(?:(?<=\s)|^)(\d{1,3})\s*[।॥]+")      # "४।।": ॥४॥ missing its first ॥
+_DANDA_NUM = re.compile(r"[।॥]+\s*(\d{1,3})\s*[।॥]+")              # "।।३॥": a number in doubled dandas
+
+
 def _marks(pattern, text: str) -> list:
     """[(end offset, number or None)] of every verse mark in a line."""
     mt = mark_text(text)
     found = {m.end(): _number(m) for m in pattern.finditer(mt)}
+    for m in list(_DANDA_NUM.finditer(mt)) + list(_NUM_DANDA.finditer(mt)):
+        inside = [e for e in found if m.start() < e <= m.end()]
+        if all(found[e] is None for e in inside):
+            for e in inside:
+                del found[e]
+            found[m.end()] = int(m.group(1))
     if _STYLES["line_num"] in pattern.pattern and not found:
         m = _END_NUMBER_DOT.search(mt)
         if m:
@@ -288,6 +301,13 @@ def _is_tune(light: str, cfg) -> bool:
     return bool(re.search(r"[-–]\s*ए\s+देशी\W*$|देशी\W*$", light))  # "… -ए देशी"
 
 
+def _is_note(light: str, cfg) -> bool:
+    """"खरतरगच्छ साहित्य कोश क्रमांक- 2592", "पाठभेद 1. …": a source or variant note."""
+    keys = {key_only(w) for w in cfg["note_words"]}
+    words = _words(re.sub(r"[-–—:]", " ", light))
+    return len(words) <= 10 and any(key_only(w) in keys for w in words)
+
+
 def _debris(light: str, conf: float, cfg) -> bool:
     """Mostly one-letter fragments and digits (a decorative frame, a framed serial
     number), or a low-confidence line without verse punctuation."""
@@ -341,7 +361,7 @@ def _first_pass(lines, cfg, title_keys, section_keys):
             t.kind = "tune"
         elif not t.marks and _debris(light, t.conf, cfg):
             t.kind = "furniture"                 # an ornament, border or frame read as letters
-        elif _BRACKETED.match(light) and not t.marks:
+        elif (_BRACKETED.match(light) or _is_note(light, cfg)) and not t.marks:
             t.kind = "note"
         elif _heading_shape(light, title_keys, t, cfg):
             t.kind = "heading"
@@ -357,8 +377,11 @@ _SERIAL_START = re.compile(r"^[\s।॥]*(\(\s*\S{1,3}\s*\)|\d{1,4}\s*[.)]|\d{1,
 def _heading_shape(light: str, title_keys, t: TLine, cfg) -> bool:
     """Short, no verse mark, no comma inside; a Kruti-type word, or a serial number
     before a plausible title ("8. श्री चन्द्रप्रभ जिन चैत्यवंदन")."""
-    if t.marks or t.fill > cfg["verse_fill_max"]:
+    if t.marks:
         return False
+    if t.fill > cfg["verse_fill_max"]:          # wide: only "… स्तवन" with no comma
+        core = re.sub(r"^[\s\d.()\[\]]+", "", light).strip(" .।॥")
+        return "," not in core and len(core.split()) <= 6 and _is_title(core, title_keys, [], 85)
     serial = _SERIAL_START.match(light)
     phrase = light[serial.end():] if serial else light
     words = phrase.split()                      # OCR debris around a framed title
@@ -388,13 +411,25 @@ def _wrapped(t, cfg) -> bool:
             and not _PARTICLE_END.search(t.light))
 
 
+def explanation_opener(cfg):
+    openers = "|".join(re.escape(light_normalize(o)) for o in cfg["explanation_openers"])
+    return re.compile(rf"^[\s(\[_\-]*({openers})\s*(?:[:ः]|[\-–—]{{2}}|[\-–—](?=\s|$))")
+
+
+def verse_like(t) -> bool:
+    """Ends like a gatha line: punctuation, a closing particle, a refrain cue, a number."""
+    s = _core(t.light).rstrip()
+    return bool(t.marks) or bool(s) and (s[-1] in ",;।॥!?" or bool(_PARTICLE_END.search(s))
+                                         or bool(_REFRAIN_CUE.search(s))
+                                         or bool(REFRAIN_AFTER_DOTS.search(t.light)))
+
+
 def _explanations(lines, cfg):
     """A paragraph opened by व्याख्या-, अर्थ:, भावार्थ … is prose up to the next gatha or
     heading. The next gatha starts at a narrow line that does not continue a wrapped
     prose line, and that has a verse mark or is followed by a narrow line that has one.
     The paragraph's own last line often repeats the gatha number (… ए भाव ॥ ११ ॥)."""
-    openers = "|".join(re.escape(light_normalize(o)) for o in cfg["explanation_openers"])
-    opener = re.compile(rf"^[\s(\[_\-]*({openers})\s*[:\-–—ः]")
+    opener = explanation_opener(cfg)
     body = [t for t in lines if t.kind != "furniture"]
     narrow = cfg["verse_fill_max"]
     inside = False
