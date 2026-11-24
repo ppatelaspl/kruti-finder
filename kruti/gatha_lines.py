@@ -109,6 +109,9 @@ _AFTER_STOP_NUMBER = re.compile(r"[^\s\d.।॥;][.।॥;]\s*(\d{1,3})\s*\.?\s*
 # "…जिनेश्वरं...२नेव्‌", ". . .४नेवु", ". . . ५. . .": a number after dots, a cue glued on
 _DOTS_NUMBER = re.compile(r"(?:\.\s*){2,}[-–]?\s*(\d{1,3})\s*[^\s\d.]{0,8}[\s.]*$")
 _AFTER_STOP_LETTER = re.compile(r"[^\s\d.।॥;][.।॥;]\s*(?:र|रू|प|छ)\s*$")
+# "… आज० २. सुण…", "… प्रभु० ३ चोथे…": a refrain cue, then the verse number, inside a line
+_CUE_NUMBER = re.compile(r"(?<=[^\s\d.।॥0])0\s*(\d{1,2})\s*\.?(?=\s|$)")
+_CUE_LETTER = re.compile(r"(?<=[^\s\d.।॥0])0\s*[रपछ]\s*\.(?=\s|$)")         # "आज० છ.": ૭ as a letter
 _FOOTNOTES = re.compile(r"(?:^|\s)\d{1,2}\.\s*[^\s\d]")
 _NUM_DANDA = re.compile(r"(?:(?<=\s)|^)(\d{1,3})\s*[।॥]+")      # "४।।": ॥४॥ missing its first ॥
 _DANDA_NUM = re.compile(r"[।॥]+\s*(\d{1,3})\s*[।॥]+")              # "।।३॥": a number in doubled dandas
@@ -145,6 +148,9 @@ def _marks(pattern, text: str) -> list:
     for m in _REFRAIN_MARK.finditer(mt):
         if not any(m.start() <= e <= m.end() for e in found):
             found[m.end()] = int(m.group(1))
+    for m in list(_CUE_NUMBER.finditer(mt)) + list(_CUE_LETTER.finditer(mt)):
+        if not any(m.start() - 2 <= e <= m.end() + 3 for e in found):
+            found[m.end()] = int(m.group(1)) if m.groups() else None
     marks = [(e, n) for e, n in sorted(found.items()) if n != 0]   # ०, ०० is a refrain cue
     # "॥ ३१० ॥ ૧ ॥": a refrain cue read as a number right before the verse number
     keep = []

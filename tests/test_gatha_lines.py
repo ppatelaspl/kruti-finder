@@ -466,3 +466,14 @@ def test_numbered_mantra_lines_are_invocations_not_verse():
     for t in ("चढ़ावे ॥४॥ ॐ हीं णमो अरिहंताणं मिश्री छवंग चढ़ावे ॥५॥ च छ ज",
               "स ह ॐ हीं रावगाय नमः । ३२ दक्षा चढ़ावे ॥१६॥ सब ९६ द्राक्षा"):
         assert kind_of([page(1, VERSES + [(t, 60, 350)] + VERSES)], t) == "note", t
+
+
+# ---- round 2, B018952 (run-on stavans numbered "आज० २." inside the line)
+def test_number_after_a_refrain_cue_inside_the_line_is_a_mark():
+    cases = [("जईजे रे, बेनी शाश्वत गिरिवर जईओ रे, आज० 9. सुणबेनी अ गिरि नो", [9]),
+             ("सीत्तेर जोजन जाणीए, त्रीजे साठ जोजननुं मान । प्रभु० २ चोधे आरि", [2]),
+             ("सुंधी गुंथी रे, पहेरावी प्रभु कंठे तेर, शत्र मारगनी सिद्धि रे. आज० છ.", [None]),
+             ("संवत पंदर सत्याशी वर्षे, बादशाह १० वरस रहे", [])]
+    for t, want in cases:
+        lines, _ = classify_book([page(1, [(t, 60, 350)])], CFG)
+        assert [n for _, n in lines[0].marks] == want, t
