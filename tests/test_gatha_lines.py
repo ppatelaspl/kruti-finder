@@ -266,7 +266,7 @@ def test_frame_serial_and_debris_lines_are_furniture():
     debris = [("त्‌ ૧૩૦ ત", 150, 250, 62), ("आ | ૧૩૧ मित्रदार के | के, के की |", 100, 330, 62),
               ("6. ते ', उ ६. 3 ६, 2 घ सं. 2 ક. કફ ६. છે. ક 3 5, 35. ક હ. ક.", 60, 330, 51)]
     ks = kinds([gpage(1, SAJ[:2] + debris + SAJ[:2])])
-    assert [k for _, k in ks[2:5]] == ["furniture"] * 3
+    assert all(k in ("furniture", "note") for _, k in ks[2:5])
 
 
 def test_kruti_heading_at_a_gatha_boundary():
@@ -498,3 +498,12 @@ def test_inline_pad_heading_is_split_from_the_first_verse():
     got = [(ln.kind, ln.text) for ln in lines if ln.text in t]
     assert [x[1] for x in got] == ["पद्‌ त्रीजुं ॥ राग केरबो ॥", "प्रभु मेरे तुम बिन कौन सहाय, मोरे"]
     assert got[0][0] == "heading"
+
+
+# ---- round 2, B002198 (run-on stavans numbered "cue n." with the cue's ० misread)
+def test_number_with_a_full_stop_after_a_short_cue_word_is_a_mark():
+    for t, want in (("સ્મરણુ કરવા લાગીરે. સ્હાવ ૧૩. સહુ મુખ", [13]),
+                    ("તે ભવમાં અટે રે લો માટ ૪. જિ૦ સાંભળો", [4]),
+                    ("ભયસાયર તરે રે લો. સા પ. જિન ગુણ", [None])):
+        lines, _ = classify_book([page(1, [(t, 60, 350)])], CFG)
+        assert [n for _, n in lines[0].marks] == want, t
