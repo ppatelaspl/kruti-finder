@@ -359,3 +359,16 @@ def test_unnumbered_two_line_gathas_ending_in_a_full_stop():
         rows += [L(f"શ્રી શ્રેયાંસ જિનવર {i} સાંભળો, એક મોરી અરદાસ,"), L(f"ઇણ ભવે જગમાં {i} દીઠો નહિ, વિલાસ.")]
     g = gathas([L("(રાગ શાંતિજીનેશ્વર સાહિબા રે)", "heading")] + rows)
     assert len(g) == 4 and all(x.how == "No number - line count" for x in g)
+
+
+def test_dots_mark_right_before_a_numbered_refrain_line_is_dropped():
+    rows = []
+    for i in range(1, 4):
+        a = L(f"પદ {i} પહેલી પંક્તિ")
+        b = L(f"પદ {i} બીજી પંક્તિ...")
+        b.marks = [(len(b.text), None)]
+        c = L(f"મોહ રે ઉતારો મુનિરાજજી {i}")
+        c.marks, c.fill = [(len(c.text), i)], 0.38
+        rows += [a, b, c]
+    g = gathas([L("સજઝાય", "heading")] + rows)
+    assert [(x.first, x.last) for x in g][1] == ("પદ 2 પહેલી પંક્તિ", "મોહ રે ઉતારો મુનિરાજજી 2")

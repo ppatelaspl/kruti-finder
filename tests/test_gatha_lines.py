@@ -507,3 +507,24 @@ def test_number_with_a_full_stop_after_a_short_cue_word_is_a_mark():
                     ("ભયસાયર તરે રે લો. સા પ. જિન ગુણ", [None])):
         lines, _ = classify_book([page(1, [(t, 60, 350)])], CFG)
         assert [n for _, n in lines[0].marks] == want, t
+
+
+# ---- round 2, B004897 (each verse followed by a numbered explanation paragraph)
+def test_numbered_explanation_paragraph_is_prose():
+    rows = [("બેસતા વર્ષ પરોઢિયે, પામ્યા કેવલનાણે;", 100, 300, 85),
+            ("સુણતાં ભણતાં સંપજે, દિન દિન મંગલમાલ. ૩", 100, 310, 85),
+            ("૩. કાર્તિક સુદિ એકમે બેસતું વર્ષ ઊજવાય છે. તે દિવસે વહેલી સવારે", 60, 340, 85),
+            ("ગૌતમસ્વામીને કેવળજ્ઞાન થયું હતું તેથી આ દિવસ મંગલ ગણાય", 60, 340, 85),
+            ("છે અને સૌ તેમનું સ્મરણ કરે છે.", 60, 200, 85),
+            ("વિશાખાનંદી સિંહ થયો, વાસુદેવના હાથ;", 100, 300, 85),
+            ("સત્યાવીશમા ભવ વિશે, તે ત્રિપૃષ્ઠ વીર યાય. ૪", 100, 310, 85)]
+    ks = kinds([gpage(1, rows)])
+    assert [k for _, k in ks] == ["verse", "verse", "prose", "prose", "prose", "verse", "verse"]
+
+
+# ---- round 3, B018723 (each gatha closes with a short right-aligned refrain line + number)
+def test_short_refrain_line_ending_in_a_letter_digit_is_a_mark():
+    rows = [("મેવા ફળ-ફુલ લાવતો હું તમારા આવાસજી", 60, 260, 85),
+            ("પ્રીતિ ઘરો પ્રેમદા મુજથી उ", 230, 330, 85)]
+    lines, _ = classify_book([gpage(1, SAJ[:2] + rows)], CFG)
+    assert [n for _, n in lines[3].marks] == [None]

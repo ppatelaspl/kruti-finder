@@ -234,8 +234,11 @@ def classify_book(pages: list, cfg: dict) -> tuple:
                                         cut / max(1, len(text)) * (ln.x1 - ln.x0) / w, []))
                 text, light, gap = text[cut:], light_normalize(text[cut:]), 0.0
             marks = _marks(pattern, text)
+            fill = (ln.x1 - ln.x0) / w
+            if not marks and fill < 0.5 and re.search(r"\S\s+[उरपछ]\s*$", mark_text(text)):
+                marks = [(len(text.rstrip()), None)]   # "…મુજથી उ": a refrain line, ૩ as a letter
             t = TLine(p.page, text, light, "", ln.conf, p.source, gap,
-                      (ln.x0 - lx) / w, (ln.x1 - ln.x0) / w, marks)
+                      (ln.x0 - lx) / w, fill, marks)
             if _SERIAL_ONLY.match(light) and 0 < i < n - 1 and not marks:
                 t.kind = "heading"               # "(२)", "[२३]" inside the page: a Kruti serial
             elif _is_page_furniture(light, repeated, edge=i < 2 or i >= n - 2) or (

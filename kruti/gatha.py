@@ -435,6 +435,16 @@ def _drop_stray_marks(lines) -> None:
             return before[-1:] in "।॥|" or core[-1:] in ",;"
         order = [i for i in empties if doubtful(i)]
         drop.update(order[:excess])
+    # "…પંક્તિ..." then the short refrain line "મોહ રે ઉતારો મુનિરાજજી ૨": the number on
+    # the refrain line ends the gatha, the dots before it do not
+    verse = [t for t in lines if t.kind == "verse"]
+    for t, nxt in zip(verse, verse[1:]):
+        if (t.marks and t.marks[-1][1] is None and len(nxt.marks) == 1 and nxt.fill < 0.5
+                and nxt.page == t.page):
+            k = len(t.marks) - 1
+            i = next((j for j, (tt, kk) in enumerate(marks) if tt is t and kk == k), None)
+            if i is not None:
+                drop.add(i)
     for i in sorted(drop, reverse=True):
         t, k = marks[i]
         t.marks = t.marks[:k] + t.marks[k + 1:]
