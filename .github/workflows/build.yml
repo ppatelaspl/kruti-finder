@@ -19,7 +19,7 @@ jobs:
         include:
           - os: windows-latest
             name: windows
-          - os: macos-14            # Apple silicon (arm64)
+          - os: macos-15            # Apple silicon (arm64); macos-14 runners were retired
             name: macos
     runs-on: ${{ matrix.os }}
     steps:
