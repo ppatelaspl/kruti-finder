@@ -132,3 +132,68 @@ def test_failed_ocr_page_is_not_cached(tmp_path, monkeypatch):
     monkeypatch.setattr(pytesseract, "image_to_data", works)
     assert [ln.text for ln in read_layout(str(pdf), cfg)[0].lines] == ["नमो"]
     assert calls                     # the page was OCR'd again, not read empty from the cache
+
+
+# --- two book pages printed side by side on one PDF page (round 4) ---
+def _spread_pdf(path):
+    import pymupdf
+    doc = pymupdf.open()
+    pg = doc.new_page(width=792, height=612)
+    for i in range(6):
+        pg.insert_text((60, 80 + 30 * i), f"left line {i + 1}")
+        pg.insert_text((460, 80 + 30 * i), f"right line {i + 1}")
+    doc.save(path)
+
+
+def test_text_layer_spread_reads_left_page_then_right_page(tmp_path):
+    from kruti.gatha_lines import gatha_config
+    from kruti.layout import read_layout
+    pdf = tmp_path / "spread.pdf"
+    _spread_pdf(pdf)
+    cfg = gatha_config({"layout_cache_dir": str(tmp_path / "c"), "min_indic_ratio": 0.0, "min_text_chars": 1})
+    p = read_layout(str(pdf), cfg)[0]
+    assert [ln.text for ln in p.lines] == [f"left line {i}" for i in range(1, 7)] + \
+        [f"right line {i}" for i in range(1, 7)]
+    assert p.width < 450 and all(ln.x1 <= p.width for ln in p.lines)   # one book page wide
+
+
+def test_ocr_spread_is_read_as_two_halves(monkeypatch):
+    """Tesseract joins the two pages' rows; each half is OCR'd on its own instead."""
+    import io
+    import pytesseract
+    from PIL import Image, ImageDraw
+    from kruti.gatha_lines import gatha_config
+    from kruti.layout import _ocr
+    img = Image.new("L", (1100, 850), 255)
+    d = ImageDraw.Draw(img)
+    for i in range(6):
+        d.rectangle((80, 100 + 60 * i, 480, 130 + 60 * i), fill=0)
+        d.rectangle((620, 100 + 60 * i, 1020, 130 + 60 * i), fill=0)
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    widths = []
+
+    def fake(im, **k):
+        widths.append(im.size[0])
+        return {"text": ["नमो"], "conf": [90], "left": [40], "top": [100], "width": [300],
+                "height": [30], "block_num": [1], "par_num": [1], "line_num": [1]}
+    monkeypatch.setattr(pytesseract, "image_to_data", fake)
+    cfg = gatha_config({"ocr_dpi": 100})
+    p = _ocr(buf.getvalue(), 1, 792, 612, cfg)
+    assert len(widths) == 2 and max(widths) < 700
+    assert len(p.lines) == 2 and p.width < 450
+
+
+def test_landscape_page_with_text_across_the_middle_is_not_split(tmp_path):
+    import pymupdf
+    from kruti.gatha_lines import gatha_config
+    from kruti.layout import read_layout
+    pdf = tmp_path / "wide.pdf"
+    doc = pymupdf.open()
+    pg = doc.new_page(width=792, height=612)
+    for i in range(6):
+        pg.insert_text((60, 80 + 30 * i), f"one long line across the whole landscape page number {i + 1} end")
+    doc.save(pdf)
+    cfg = gatha_config({"layout_cache_dir": str(tmp_path / "c"), "min_indic_ratio": 0.0, "min_text_chars": 1})
+    p = read_layout(str(pdf), cfg)[0]
+    assert p.width == 792 and len(p.lines) == 6

@@ -22,6 +22,8 @@ from .extract import _share_cores, _text_layer_is_usable
 
 log = logging.getLogger(__name__)
 LAYOUT_CACHE_VERSION = 1
+PAGE_VERSION = 2          # 2: two-page spreads read as two halves; older landscape pages are re-read
+SPREAD = 1.15             # a page this much wider than tall may hold two book pages
 
 
 @dataclass
@@ -44,6 +46,7 @@ class PageLayout:
     width: float
     height: float
     lines: list = field(default_factory=list)
+    v: int = 1                # PAGE_VERSION it was read with
 
 
 # ---------------------------------------------------------------- line builders
@@ -178,6 +181,29 @@ def order_lines(lines: list, width: float) -> list:
     return out
 
 
+def _spread_gutter(lines: list, width: float, height: float):
+    """x of the gutter between two book pages printed side by side, or None: the page is
+    landscape, an empty band runs down its middle, and both sides hold text."""
+    if width <= SPREAD * height or len(lines) < 4:
+        return None
+    g = _gutter(lines, width)
+    if g is None or not 0.4 * width <= g <= 0.6 * width:
+        return None
+    left = sum(ln.x1 <= g for ln in lines)
+    return g if left >= 2 and len(lines) - left >= 2 else None
+
+
+def _shift(ln: Line, dx: float) -> Line:
+    return Line(ln.text, ln.x0 + dx, ln.y0, ln.x1 + dx, ln.y1, ln.conf, ln.block, ln.par)
+
+
+def _two_pages(left: list, right: list, g: float, width: float):
+    """(width of one book page, lines): the left page read first, then the right one, in
+    the same x range, so rows of the two pages are never joined."""
+    half = max(g, width - g)
+    return half, order_lines(left, half) + order_lines([_shift(ln, -g) for ln in right], half)
+
+
 # ---------------------------------------------------------------- cache
 def _cache_path(pdf_path: str, cfg) -> str:
     st = os.stat(pdf_path)
@@ -204,27 +230,62 @@ def _read_cache(path: str, page_count: int) -> dict:
                 p = _from_json(json.loads(line))
             except (ValueError, TypeError, KeyError):
                 continue          # a half-written last line after a crash
+            if p.width > SPREAD * p.height and p.v < 2:
+                continue          # read before spreads were split: read it again
             if 1 <= p.page <= page_count:
                 done[p.page] = p
     return done
 
 
 # ---------------------------------------------------------------- reading
+def _ink_gutter(img):
+    """x (pixels) of a blank vertical band in the middle fifth of a landscape page image, or None."""
+    g = img.convert("L")
+    w, h = g.size
+    if w <= SPREAD * h:
+        return None
+    lo, hi = int(0.4 * w), int(0.6 * w)
+    band = g.crop((lo, 0, hi, h)).point(lambda v: 255 if v < 128 else 0)
+    cols = [0] * (hi - lo)
+    px = band.load()
+    for x in range(hi - lo):
+        cols[x] = sum(1 for y in range(0, h, 2) if px[x, y])
+    limit = max(1, h // 500)
+    best, start = None, None
+    for x, c in enumerate(cols + [limit + 1]):
+        if c <= limit:
+            start = x if start is None else start
+        elif start is not None:
+            if x - start >= 0.015 * w and (best is None or x - start > best[1] - best[0]):
+                best = (start, x)
+            start = None
+    return None if best is None else lo + (best[0] + best[1]) // 2
+
+
 def _ocr(png: bytes, page_no: int, width: float, height: float, cfg) -> PageLayout:
     import pytesseract
     from PIL import Image
+    scale = cfg["ocr_dpi"] / 72
     try:
-        data = pytesseract.image_to_data(Image.open(io.BytesIO(png)), lang=cfg["tesseract_langs"],
-                                         output_type=pytesseract.Output.DICT)
-        lines = lines_from_tesseract(data, cfg["ocr_dpi"] / 72)
-        confs = [float(c) for c, t in zip(data["conf"], data["text"])
-                 if float(c) >= 0 and str(t).strip()]
+        img = Image.open(io.BytesIO(png))
+        gx = _ink_gutter(img)
+        parts = [(img, 0)] if gx is None else [(img.crop((0, 0, gx, img.size[1])), 0),
+                                               (img.crop((gx, 0, img.size[0], img.size[1])), gx)]
+        sides, confs = [], []
+        for part, dx in parts:
+            data = pytesseract.image_to_data(part, lang=cfg["tesseract_langs"],
+                                             output_type=pytesseract.Output.DICT)
+            sides.append([_shift(ln, dx / scale) for ln in lines_from_tesseract(data, scale)])
+            confs += [float(c) for c, t in zip(data["conf"], data["text"])
+                      if float(c) >= 0 and str(t).strip()]
         conf = sum(confs) / len(confs) if confs else 0.0
     except Exception as e:  # noqa: BLE001 - one bad page must not stop a book
         log.warning("OCR failed on page %d: %s", page_no, e)
         return PageLayout(page_no, "failed", 0.0, width, height, [])   # not cached: retried next run
-    return PageLayout(page_no, "ocr", round(conf, 1), width, height,
-                      order_lines(lines, width))
+    if len(sides) == 2:
+        half, lines = _two_pages(sides[0], sides[1], gx / scale, width)
+        return PageLayout(page_no, "ocr", round(conf, 1), half, height, lines)
+    return PageLayout(page_no, "ocr", round(conf, 1), width, height, order_lines(sides[0], width))
 
 
 def read_layout(pdf_path: str, cfg, on_page=None, checkpoint=None, only=None) -> list:
@@ -252,6 +313,7 @@ def read_layout(pdf_path: str, cfg, on_page=None, checkpoint=None, only=None) ->
         try:
             with open(cache_file, "a", encoding="utf-8") as cache:
                 def record(p):
+                    p.v = PAGE_VERSION
                     done[p.page] = p
                     if p.source != "failed":
                         cache.write(json.dumps(asdict(p), ensure_ascii=False) + "\n")
@@ -266,7 +328,13 @@ def read_layout(pdf_path: str, cfg, on_page=None, checkpoint=None, only=None) ->
                     text = "" if force_ocr else page.get_text()
                     if not force_ocr and _text_layer_is_usable(text, cfg):
                         lines = lines_from_text_dict(page.get_text("dict"))
-                        record(PageLayout(i + 1, "text", 100.0, w, h, order_lines(lines, w)))
+                        g = _spread_gutter(lines, w, h)
+                        if g is None:
+                            record(PageLayout(i + 1, "text", 100.0, w, h, order_lines(lines, w)))
+                        else:
+                            half, two = _two_pages([ln for ln in lines if ln.x1 <= g],
+                                                   [ln for ln in lines if ln.x0 >= g], g, w)
+                            record(PageLayout(i + 1, "text", 100.0, half, h, two))
                     elif not text.strip() and not page.get_images() and not page.get_drawings():
                         record(PageLayout(i + 1, "text", 100.0, w, h, []))
                     else:
