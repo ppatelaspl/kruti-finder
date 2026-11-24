@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples/B041178_bruhat_stavanavali_020135_hB0478r3.pdf"
 PAGES = (127, 130)
 # Run-on layout: gathas run on through full-width lines and end mid-line at the

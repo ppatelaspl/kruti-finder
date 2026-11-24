@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples/B024736_ratnasagar_mohan_gun_mala_032083_std.pdf"
 PAGES = (313, 316)
 # Run-on lines: each gatha ends mid-line at "॥ n ॥" followed by the refrain cue "उ० ॥";

@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples/B018723_sazzay_sarita_023239_std.pdf"
 PAGES = (283, 286)
 # Gujarati sajjhays; each gatha ends in a right-aligned refrain-cue line holding its number.

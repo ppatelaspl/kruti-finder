@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples/S037974_chaityavandan_chauvisi_003635_hr.pdf"
 PAGES = (40, 43)
 # Chauvisi chaityavandans: 3 gathas of 2 lines each, ending "...n...".

@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples/B035022_Ud_Jare_Panchi_Mahavirdeh_Mai_150dpi.pdf"
 PAGES = (97, 100)
 # Sanskrit/Apabhramsha stotras with metre headings "(अथ मालिनी)" etc. (not gatha lines).
