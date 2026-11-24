@@ -412,15 +412,26 @@ def _drop_stray_marks(lines) -> None:
     # more of them than numbers are missing) are not verse marks
     known = [i for i, n in enumerate(nums) if n is not None and i not in drop]
     for a, b in zip([-1] + known, known):
-        # only empty danda pairs ("लाल।।") - a garbled digit ("… नाम रे. પ") is a real mark
-        empties = [i for i in range(a + 1, b) if nums[i] is None and i not in drop
-                   and marks[i][0].text[:marks[i][0].marks[marks[i][1]][0]].rstrip()[-1:] in "।॥|"]
+        empties = [i for i in range(a + 1, b) if nums[i] is None and i not in drop]
         if not empties:
             continue
         lo = nums[a] if a >= 0 else 0
         missing = nums[b] - lo - 1 if nums[b] > lo else nums[b] - 1
-        if len(empties) > max(0, missing):
-            drop.update(empties[:len(empties) - max(0, missing)])
+        if nums[b] <= lo and a >= 0:
+            missing += 1                # a restart: the old Kruti may still have one gatha
+        excess = len(empties) - max(0, missing)
+        if excess <= 0:
+            continue
+
+        def doubtful(i):
+            """An empty danda pair ("लाल।।"), or a mark ending a half-line ("…તાસ; ર"),
+            not a gatha end written with dots or a garbled digit after a full stop."""
+            t, k = marks[i]
+            before = t.text[:t.marks[k][0]].rstrip()
+            core = re.sub(r"\s*\S{0,2}$", "", before).rstrip()   # without the garbled digit
+            return before[-1:] in "।॥|" or core[-1:] in ",;"
+        order = [i for i in empties if doubtful(i)]
+        drop.update(order[:excess])
     for i in sorted(drop, reverse=True):
         t, k = marks[i]
         t.marks = t.marks[:k] + t.marks[k + 1:]

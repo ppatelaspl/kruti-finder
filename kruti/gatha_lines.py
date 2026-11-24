@@ -108,7 +108,7 @@ _END_GARBLED = re.compile(r"0\s+[रपछ]\s*\.?\s*$")
 _AFTER_STOP_NUMBER = re.compile(r"[^\s\d.।॥;][.।॥;]\s*(\d{1,3})\s*\.?\s*$")
 # "…जिनेश्वरं...२नेव्‌", ". . .४नेवु", ". . . ५. . .": a number after dots, a cue glued on
 _DOTS_NUMBER = re.compile(r"(?:\.\s*){2,}[-–]?\s*(\d{1,3})\s*[^\s\d.]{0,8}[\s.]*$")
-_AFTER_STOP_LETTER = re.compile(r"[^\s\d.।॥;][.।॥;]\s*(?:र|रू|प|छ)\s*$")
+_AFTER_STOP_LETTER = re.compile(r"[^\s\d.।॥;][.।॥]\s*(?:र|रू|प|छ)\s*$")
 # "… आज० २. सुण…", "… प्रभु० ३ चोथे…": a refrain cue, then the verse number, inside a line
 _CUE_NUMBER = re.compile(r"(?<=[^\s\d.।॥0])0\s*(\d{1,2})\s*\.?(?=\s|$)")
 _CUE_LETTER = re.compile(r"(?<=[^\s\d.।॥0])0\s*[रपछ]\s*\.(?=\s|$)")         # "आज० છ.": ૭ as a letter

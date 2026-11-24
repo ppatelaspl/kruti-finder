@@ -335,3 +335,11 @@ def test_garbled_last_number_before_the_next_kruti_is_kept():
     lines += numbered(3, "બીજું")
     ks = split_gathas([L("સ્તવન", "heading")] + lines, CFG)
     assert [len(k.gathas) for k in ks] == [5, 3]
+
+
+def test_garbled_marks_between_consecutive_numbers_are_still_pruned():
+    rows = []
+    for i in range(1, 4):
+        rows += [L(f"પદ {i} ક રે; ર"), L(f"પદ {i} ખ રે. ॥{i}॥")]     # "ર" after a half-line ;
+    g = gathas([L("સજઝાય", "heading")] + rows)
+    assert [x.no for x in g] == ["1", "2", "3"]
