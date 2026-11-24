@@ -539,3 +539,59 @@ def test_centred_serial_missing_its_opening_bracket_is_a_heading():
     for t in ("6)", "ઉ)"):
         pages = [gpage(1, SAJ[:2] + [(t, 200, 215, 80)] + SAJ[:2])]
         assert kind_of(pages, t) == "heading", t
+
+
+# --- Kruti headings by the books' common conventions (round 4) ---
+PREV_END = [("एक गाथानी पहेली लीटी लखेली छे,", LEFT, 330), ("एनी बीजी लीटी अहीं पूरी थाय छे ॥4॥", LEFT, 330)]
+NEXT = [("पहेली नवी गाथा अहीं शरु थाय, हवे आगळ", 90, 330), ("बीजी लीटी अहीं पूरी थाय छे भाई ॥1॥", 90, 330)]
+
+
+def test_serial_type_word_heading():
+    """"ગાયન ૨૨ મું. રાગ …": a type word with its serial number heads a Kruti, even flush left."""
+    pages = [page(1, PREV_END + [("ગાયન ૨૨ મું. રાગ કેદારો,", LEFT, 250)] + NEXT)]
+    assert kind_of(pages, "ગાયન ૨૨ મું. રાગ કેદારો,") == "heading"
+
+
+def test_garbled_type_word_with_serial_is_heading():
+    pages = [page(1, PREV_END + [("સ્તવના ૮ મી,-રાગ કેદારો તથા ગોડી,", 120, 300)] + NEXT)]
+    assert kind_of(pages, "સ્તવના ૮ મી,-રાગ કેદારો તથા ગોડી,") == "heading"
+
+
+def test_atha_opener_is_heading():
+    """"॥ अथ काया उपर लावणी चोपनमी ॥" and "… स्तवन लिख्यते": the old opener of a Kruti."""
+    for title in ("॥ अथ काया उपर लावणी चोपनमी ॥", "॥ श्रीमंदीर बहरमानरो स्तवन लीख्यंते ॥"):
+        pages = [page(1, PREV_END + [(title, 90, 320)] + NEXT)]
+        assert kind_of(pages, title) == "heading", title
+
+
+def test_line_above_tune_line_is_heading():
+    """The short line just above a tune line ("… --એ દેશી") names the Kruti."""
+    pages = [page(1, PREV_END + [("શ્રી સુવિધિ જિનરાજ નવમા", 130, 280),
+                                  ("એંમ ધના ધણને પરણાવે.--એ દેશી,", 130, 290)] + NEXT)]
+    assert kind_of(pages, "શ્રી સુવિધિ જિનરાજ નવમા") == "heading"
+
+
+def test_verse_with_number_inside_stays_verse():
+    """A verse line that merely contains a type word and a number is not a heading."""
+    line = ("पद ४ सुणीने भवि प्राणी, समकित गुण पामे रे,", 90, 330)
+    pages = [page(1, PREV_END + NEXT[:1] + [line] + NEXT[1:])]
+    assert kind_of(pages, line[0]) == "verse"
+
+
+def test_line_end_numbers_in_sequence_are_gatha_marks():
+    """"… સખિ ૭,": a bare number ending a line is a gatha number when it continues the count."""
+    rows = [("ગાયન ૮ મું", 150, 260)]
+    for n in (1, 2, 3):
+        rows += [(f"પહેલી લીટી અહીં ચાલે ને આગળ વધે ગાથા {'એક બે ત્રણ'.split()[n-1]}; સખિ", 60, 330),
+                 (f"બીજી લીટી અહીં પૂરી થાય છે વળી, સખિ {'૧૨૩'[n-1]},", 60, 340)]
+    lines, _ = classify_book([page(1, rows)], CFG)
+    ends = [ln.marks[-1][1] for ln in lines if ln.marks]
+    assert ends == [1, 2, 3]
+
+
+def test_line_end_number_out_of_sequence_is_not_a_mark():
+    rows = [("ગાયન ૮ મું", 150, 260),
+            ("પહેલી લીટી અહીં ચાલે ને આગળ વધે ભાઈ; સખિ", 60, 330),
+            ("બીજી લીટી અહીં પૂરી થાય છે વળી, વરસ ૪૫,", 60, 340)]
+    lines, _ = classify_book([page(1, rows)], CFG)
+    assert not any(ln.marks for ln in lines)

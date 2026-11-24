@@ -56,6 +56,13 @@ GATHA_DEFAULTS = {
     "long_gatha_lines": 8,
     "max_quote_gathas": 6,       # a Kruti this short, without heading, inside prose: a quote
     "min_verse_like": 0.35,       # share of an unnumbered block's lines that must end like verse
+    # Kruti headings by the books' common conventions:
+    #   "ગાયન ૨૨ મું", "સ્તવન ૮ મી": a type word, its serial number and ordinal
+    "serial_title_words": ["गायन", "भजन", "स्तवना", "गझल", "गरबो", "गरबी", "धोळ", "कीर्तन"],
+    "serial_ordinals": ["मुं", "मु", "मी", "मि", "मो", "मा", "मं", "वां", "वीं", "वाँ"],
+    #   "॥ अथ … लावणी …मी ॥" and "… स्तवन लिख्यते ॥": the old opener (OCR variants included)
+    "atha_words": ["अथ", "अय", "प्रथ"],
+    "likhyate_words": ["लिख्यते", "लिख्यंते", "लीख्यते", "लीख्यंते", "लिखीए", "लिखते"],
 }
 
 _DIGITS = str.maketrans("०१२३४५६७८९|", "0123456789।")
@@ -266,6 +273,8 @@ def classify_book(pages: list, cfg: dict) -> tuple:
     _smooth(out, cfg["smooth_window"])
     _continuations(out, cfg)
     _boundary_headings(out, title_keys)
+    _convention_headings(out, cfg, title_keys)
+    _sequence_marks(out)
     _headings_need_verse(out)
     return out, printed
 
@@ -583,6 +592,77 @@ def _boundary_headings(lines, title_keys):
                        or bool(re.search(r"\d\W*$", prev.light)))       # "… .૧૯"
         if at_boundary and nxt.kind == "verse":
             t.kind = "heading"
+
+
+def _type_word(word: str, keys) -> bool:
+    k = key_only(word)
+    return len(k) >= 2 and any(k == x or (len(x) >= 3 and fuzz.ratio(k, x) >= 80) for x in keys)
+
+
+def _convention_headings(lines, cfg, title_keys):
+    """Kruti headings that books print by common convention, whatever their layout:
+    "ગાયન ૨૨ મું. રાગ …" (type word, serial, ordinal); "॥ अथ … ॥" and "… लिख्यते"
+    (the old opener); and a short line standing just above a tune line ("…--એ દેશી")."""
+    keys = list(title_keys) + [key_only(w) for w in cfg["serial_title_words"] if key_only(w)]
+    ordinals = {key_only(w) for w in cfg["serial_ordinals"]}
+    atha = {key_only(w) for w in cfg["atha_words"]}
+    likh = {key_only(w) for w in cfg["likhyate_words"]}
+    body = [t for t in lines if t.kind != "furniture"]
+    for i, t in enumerate(body):
+        if t.kind not in ("verse", "prose", "note"):
+            continue
+        if t.marks and any(n is not None for _, n in t.marks):
+            continue
+        core = t.light.strip(" ।॥|()[]-–:\"'“”.")
+        words = core.split()
+        if not words or len(words) > 12:
+            continue
+        nxt = body[i + 1] if i + 1 < len(body) else None
+        if len(words) >= 2 and _type_word(words[0], keys) and re.match(r"\d", words[1]):
+            after = re.sub(r"^\d+", "", words[1])
+            rest = words[2:]
+            ord_ok = (after[:1] in ".)" and after != "") or not rest or \
+                key_only(re.split(r"[,.\-–:]", rest[0])[0]) in ordinals
+            if ord_ok:
+                t.kind = "heading"
+                continue
+        if "," in core:
+            continue
+        if key_only(words[0]) in atha and len(words) >= 2 or any(key_only(w) in likh for w in words):
+            t.kind = "heading"
+            continue
+        if (nxt is not None and nxt.kind == "tune" and t.kind == "verse" and not t.marks
+                and len(words) <= 8 and not re.search(r"[;।॥]", core) and t.fill < 0.8):
+            t.kind = "heading"
+
+
+_LINE_END_NUMBER = re.compile(r"(?<=\s)(\d{1,2})\s*[.,;]?\s*$")
+
+
+def _sequence_marks(lines):
+    """"… સખિ ૭,": a bare number ending a verse line is that gatha's number when it
+    continues the count (the last number + 1, or + 2 when OCR lost one in between).
+    Whatever the book's print style, a stray number elsewhere does not pass this check."""
+    last = 0
+    for t in lines:
+        if t.kind in ("heading", "part"):
+            last = 0
+            continue
+        if t.kind != "verse":
+            continue
+        nums = [n for _, n in t.marks if n is not None]
+        if nums:
+            last = nums[-1]
+            continue
+        if t.marks:
+            continue
+        m = _LINE_END_NUMBER.search(mark_text(t.text))
+        if not m:
+            continue
+        n = int(m.group(1))
+        if n == last + 1 or (last and n == last + 2):
+            t.marks = [(m.end(1), n)]
+            last = n
 
 
 def _headings_need_verse(lines):
