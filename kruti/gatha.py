@@ -318,8 +318,9 @@ def _source(pieces) -> str:
 def _gatha(part, no, pieces, how, cfg, extra=()) -> Gatha:
     first = pieces[0].text
     last = pieces[-1].text
-    bare = re.sub(r"[।॥|.\s\d०-९૦-૯]", "", re.sub(r"\S*[0०૦](?=[\s.।॥]|$)", "", last))
-    if len(pieces) > 1 and not re.search(r"[^\W\d_]", bare):
+    bare = re.sub(r"[।॥|.\s\d०-९૦-૯]", "", re.sub(r"\S*[0०૦](?=[\s.।॥)]|$)", "", last))
+    letters = sum(c.isalpha() for c in bare)
+    if len(pieces) > 1 and (letters < 3 or not re.search(r"[^\W\d_]", bare)):
         last = f"{pieces[-2].text} {last}"          # a verse mark (and cue) alone on its line
     confs = [p.line.conf for p in pieces]
     pages = (pieces[0].line.page, pieces[-1].line.page)
