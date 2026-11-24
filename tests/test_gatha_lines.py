@@ -595,3 +595,10 @@ def test_line_end_number_out_of_sequence_is_not_a_mark():
             ("બીજી લીટી અહીં પૂરી થાય છે વળી, વરસ ૪૫,", 60, 340)]
     lines, _ = classify_book([page(1, rows)], CFG)
     assert not any(ln.marks for ln in lines)
+
+
+def test_modern_likhte_in_prose_is_not_a_heading():
+    line = ("अनुभव को अभिव्यक्त करते हुए आप लिखते हैं-", LEFT, 280)
+    pages = [page(1, PROSE[:3] + [line] + [("धन धन दिन मुझ आज नो रे", 90, 250),
+                                            ("दोष सकल दूरे गया रे ॥5॥", 90, 250)] + PROSE[:3])]
+    assert kind_of(pages, line[0]) != "heading"

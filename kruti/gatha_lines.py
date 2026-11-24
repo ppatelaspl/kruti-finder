@@ -62,7 +62,7 @@ GATHA_DEFAULTS = {
     "serial_ordinals": ["मुं", "मु", "मी", "मि", "मो", "मा", "मं", "वां", "वीं", "वाँ"],
     #   "॥ अथ … लावणी …मी ॥" and "… स्तवन लिख्यते ॥": the old opener (OCR variants included)
     "atha_words": ["अथ", "अय", "प्रथ"],
-    "likhyate_words": ["लिख्यते", "लिख्यंते", "लीख्यते", "लीख्यंते", "लिखीए", "लिखते"],
+    "likhyate_words": ["लिख्यते", "लिख्यंते", "लीख्यते", "लीख्यंते", "लिखीए"],
 }
 
 _DIGITS = str.maketrans("०१२३४५६७८९|", "0123456789।")
@@ -628,7 +628,8 @@ def _convention_headings(lines, cfg, title_keys):
                 continue
         if "," in core:
             continue
-        if key_only(words[0]) in atha and len(words) >= 2 or any(key_only(w) in likh for w in words):
+        if t.kind != "prose" and (key_only(words[0]) in atha and len(words) >= 2
+                                  or any(key_only(w) in likh for w in words)):
             t.kind = "heading"
             continue
         if (nxt is not None and nxt.kind == "tune" and t.kind == "verse" and not t.marks
