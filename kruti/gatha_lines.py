@@ -222,6 +222,13 @@ def classify_book(pages: list, cfg: dict) -> tuple:
             prev = ln
             w = width or (p.width * 0.8)
             lx = left.get(p.page % 2, 0) if width else 0
+            head = _INLINE_HEAD.match(mark_text(text))
+            if head and key_only(head.group(1)) in title_keys and len(text) - head.end() > 12:
+                cut = head.end()            # same offsets in text and mark_text
+                page_lines.append(TLine(p.page, text[:cut].strip(), light_normalize(text[:cut]).strip(),
+                                        "heading", ln.conf, p.source, gap, (ln.x0 - lx) / w,
+                                        cut / max(1, len(text)) * (ln.x1 - ln.x0) / w, []))
+                text, light, gap = text[cut:], light_normalize(text[cut:]), 0.0
             marks = _marks(pattern, text)
             t = TLine(p.page, text, light, "", ln.conf, p.source, gap,
                       (ln.x0 - lx) / w, (ln.x1 - ln.x0) / w, marks)
@@ -416,6 +423,8 @@ def _first_pass(lines, cfg, title_keys, section_keys):
 _SERIAL_ONLY = re.compile(r"^[\s।॥|`'\"]*[(\[]\s*[\dA-Za-z\u0900-\u0aff]{1,3}\s*[)\]][\s।॥|.]*$")
 _ORNAMENT = "€©ॐ®✽❀❁✿*>«»~"
 _FRAMED = re.compile(rf"^\s*[{_ORNAMENT}`'\"]+\s*\S.*\S\s*[{_ORNAMENT}]+\s*$|^\s*[{_ORNAMENT}]+\s*\S.*$|^.*\S\s*[{_ORNAMENT}]+\s*$")
+# "पद त्रीजुं ॥ राग केरबो ॥ प्रभु मेरे …": a Kruti heading printed before the first verse
+_INLINE_HEAD = re.compile(r"^\s*(\S+)(?:\s+\S+){1,2}?\s*॥(?:\s*राग[^॥]{0,40}॥)?\s*(?=\S)")
 _QUOTED = re.compile(r"[।॥]\s*[”\"’]")
 _SERIAL_START = re.compile(r"^[\s।॥]*(\(\s*\S{1,3}\s*\)|\d{1,4}\s*[.)]|\d{1,4}\s)\s*")
 
@@ -564,7 +573,7 @@ def _headings_need_verse(lines):
     """A heading-shaped line inside prose ("कृतित्व") is a section title of the preface,
     not a Kruti title: a heading must be followed by gathas before the next prose."""
     for i, t in enumerate(lines):
-        if t.kind != "heading":
+        if t.kind != "heading" or t.light.rstrip().endswith("॥"):     # "पद त्रीजुं ॥ राग … ॥"
             continue
         nxt = next((u.kind for u in lines[i + 1:i + 8]
                     if u.kind not in ("furniture", "tune", "note", "part")), None)

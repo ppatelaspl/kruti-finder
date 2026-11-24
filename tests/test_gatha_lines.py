@@ -489,3 +489,12 @@ def test_number_with_a_missing_closing_danda_is_a_mark():
 def test_dash_style_footnotes_are_notes():
     t = "૧-વૃક્ષ, ૨-સુંદર 3-ચાલ્યો ગયો છે વિકાર જેનો."
     assert kind_of([gpage(1, SAJ[:2] + [(t, 60, 250, 85)] + SAJ[:2])], t) == "note"
+
+
+# ---- round 2, S002803 (pad heading printed on the same line as the first verse)
+def test_inline_pad_heading_is_split_from_the_first_verse():
+    t = "पद्‌ त्रीजुं ॥ राग केरबो ॥ प्रभु मेरे तुम बिन कौन सहाय, मोरे"
+    lines, _ = classify_book([page(1, VERSES + [(t, 60, 350)] + VERSES)], CFG)
+    got = [(ln.kind, ln.text) for ln in lines if ln.text in t]
+    assert [x[1] for x in got] == ["पद्‌ त्रीजुं ॥ राग केरबो ॥", "प्रभु मेरे तुम बिन कौन सहाय, मोरे"]
+    assert got[0][0] == "heading"
