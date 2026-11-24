@@ -1,0 +1,168 @@
+"""Gatha Lines: Kruti and gathas from classed lines.   Run:  python -m pytest tests"""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from kruti.gatha import Gatha, confidence, split_gathas      # noqa: E402
+from kruti.gatha_lines import TLine, gatha_config, mark_text  # noqa: E402
+from kruti.krutis import verse_pattern                        # noqa: E402
+
+CFG = gatha_config(None)
+_PAT = verse_pattern("")
+
+
+def L(text, kind="verse", page=1, gap=0.0, conf=90.0, indent=0.1, source="ocr"):
+    from kruti.gatha_lines import _number
+    marks = [(m.end(), _number(m)) for m in _PAT.finditer(mark_text(text))] if kind == "verse" else []
+    return TLine(page, text, text, kind, conf, source, gap, indent, 0.6, marks)
+
+
+def gathas(lines):
+    return [g for k in split_gathas(lines, CFG) for g in k.gathas]
+
+
+def numbered(n, prefix="पद"):
+    """n gathas of two lines each: "<prefix> i क," / "<prefix> i ख ॥i॥"."""
+    out = []
+    for i in range(1, n + 1):
+        out += [L(f"{prefix} {i} क,"), L(f"{prefix} {i} ख ॥{i}॥")]
+    return out
+
+
+def test_numbered_gathas_first_and_last_line():
+    ks = split_gathas([L("शांतिनाथ स्तवन", "heading")] + numbered(3), CFG)
+    assert len(ks) == 1 and ks[0].title == "शांतिनाथ स्तवन"
+    g = ks[0].gathas
+    assert [x.no for x in g] == ["1", "2", "3"]
+    assert (g[1].first, g[1].last) == ("पद 2 क,", "पद 2 ख ॥2॥")
+    assert all(x.how == "Numbered verse" for x in g)
+
+
+def test_tune_line_not_in_gatha_one():
+    ks = split_gathas([L("शांतिनाथ स्तवन", "heading"), L("राग - आशावरी", "tune")] + numbered(2), CFG)
+    assert ks[0].gathas[0].first == "पद 1 क,"
+
+
+def test_explanation_between_gathas_skipped():
+    prose = [L("भावार्थ- हे प्रभु आप", "prose"), L("जगत के नाथ हैं और", "prose"),
+             L("सबका कल्याण करते हैं।", "prose")]
+    g = numbered(3)
+    ks = split_gathas([L("स्तवन", "heading")] + g[:2] + prose + g[2:4] + prose + g[4:], CFG)
+    assert len(ks) == 1
+    assert [x.no for x in ks[0].gathas] == ["1", "2", "3"]
+    assert "next to prose" in ks[0].gathas[1].checks
+
+
+def test_quoted_verse_inside_explanation_ignored():
+    g = numbered(3)
+    quote = [L("अर्थ: जैसे कहा है “ धर्म मंगल ॥2॥ ” ऐसा", "prose")]
+    ks = split_gathas([L("स्तवन", "heading")] + g[:2] + quote + g[2:], CFG)
+    assert [x.no for x in ks[0].gathas] == ["1", "2", "3"]
+
+
+def test_restart_at_one_starts_new_kruti():
+    ks = split_gathas(numbered(3) + numbered(2, "अन्य"), CFG)
+    assert [len(k.gathas) for k in ks] == [3, 2]
+    assert ks[1].gathas[0].first == "अन्य 1 क,"
+
+
+def test_part_heading_keeps_kruti():
+    ks = split_gathas(numbered(2) + [L("ढाल बीजी", "part")] + numbered(2, "बीजी"), CFG)
+    assert len(ks) == 1
+    assert [(x.part, x.no) for x in ks[0].gathas] == [("", "1"), ("", "2"), ("ढाल बीजी", "1"),
+                                                      ("ढाल बीजी", "2")]
+
+
+def test_garbled_number_inferred():
+    lines = numbered(3)
+    lines[3] = L("पद 2 ख ॥]॥")
+    g = gathas(lines)
+    assert g[1].no == "2" and g[1].how == "Number inferred (OCR garbled)"
+    assert g[0].how == g[2].how == "Numbered verse"
+
+
+def test_misread_number_fixed_by_sequence():
+    lines = numbered(5)
+    lines[7] = L("पद 4 ख ॥5॥")              # OCR read 4 as 5; the next one is 5 again
+    g = gathas(lines)
+    assert [x.no for x in g] == ["1", "2", "3", "4", "5"]
+    assert g[3].how == "Number inferred (OCR garbled)"
+
+
+def test_unnumbered_by_gap():
+    lines = []
+    for i in range(4):
+        lines += [L(f"पंक्ति {i} क", gap=1.2 if i else 0.0), L(f"पंक्ति {i} ख")]
+    g = gathas([L("पद", "heading")] + lines)
+    assert [x.no for x in g] == ["(1)", "(2)", "(3)", "(4)"]
+    assert all(x.how == "No number - gap" for x in g)
+    assert (g[2].first, g[2].last) == ("पंक्ति 2 क", "पंक्ति 2 ख")
+
+
+def test_unnumbered_by_indent():
+    lines = []
+    for i in range(4):
+        lines += [L(f"पंक्ति {i} क,", indent=0.1), L(f"पंक्ति {i} ख ।", indent=0.25)]
+    g = gathas([L("पद", "heading")] + lines)
+    assert len(g) == 4 and g[1].first == "पंक्ति 1 क,"
+    assert all(x.how == "No number - gap" for x in g)
+
+
+def test_unnumbered_by_line_count():
+    ends = [",", ";", ",", "॥"] * 2
+    lines = [L(f"पंक्ति {i} {e}") for i, e in enumerate(ends)]
+    g = gathas([L("पद", "heading")] + lines)
+    assert len(g) == 2 and all(x.how == "No number - line count" for x in g)
+    assert (g[1].first, g[1].last) == ("पंक्ति 4 ,", "पंक्ति 7 ॥")
+
+
+def test_unnumbered_without_agreeing_ends_not_split():
+    lines = [L(f"पंक्ति {i}") for i in range(8)]
+    assert split_gathas([L("पद", "heading")] + lines, CFG) == []
+
+
+def test_run_on_line_splits_at_marks():
+    g = gathas([L("स्तवन", "heading"), L("अ ब क ॥1॥ ड ए फ ॥2॥ ग ह इ ॥3॥")])
+    assert [(x.first, x.last) for x in g] == [("अ ब क ॥1॥",) * 2, ("ड ए फ ॥2॥",) * 2,
+                                              ("ग ह इ ॥3॥",) * 2]
+
+
+def test_gatha_across_pages():
+    lines = numbered(3)
+    lines[3] = L("पद 2 ख ॥2॥", page=2)
+    lines[4:] = [L(x.text, page=2) for x in lines[4:]]
+    g = gathas([L("स्तवन", "heading")] + lines)
+    assert g[1].pages == (1, 2) and "crosses pages" in g[1].checks
+    assert g[0].pages == (1, 1)
+
+
+def test_single_gatha_kruti_dropped():
+    assert split_gathas([L("स्तवन", "heading")] + numbered(1), CFG) == []
+
+
+def test_gujarati_numbers_and_script_kept():
+    lines = [L("શ્રી મહસેન નરેશ નંદ,"), L("શશિ લાંછન ઉજ્જ્વલ વરણ ॥૧॥"),
+             L("ધનુષ દોઢ સૈ માન ચારુ,"), L("આયુ બરસ દશ લાખ પૂર્વ ॥૨॥")]
+    g = gathas([L("સ્તવન", "heading")] + lines)
+    assert [x.no for x in g] == ["1", "2"]
+    assert (g[0].first, g[0].last) == ("શ્રી મહસેન નરેશ નંદ,", "શશિ લાંછન ઉજ્જ્વલ વરણ ॥૧॥")
+
+
+def test_no_heading_check_and_sources():
+    g = gathas(numbered(2))
+    assert "no heading" in g[0].checks
+    g = gathas([L("स्तवन", "heading")] + [L(x.text, source="text", conf=100) for x in numbered(2)])
+    assert g[0].source == "Text layer" and g[0].conf == 100 and g[0].checks == []
+
+
+def test_confidence_levels():
+    def mk(how, conf=95, checks=()):
+        return Gatha("", "1", "a", "b", (1, 1), how, conf, "OCR", list(checks))
+    assert confidence(mk("Numbered verse"), 70) == "High"
+    assert confidence(mk("No number - gap"), 70) == "Medium"
+    assert confidence(mk("Number inferred (OCR garbled)"), 70) == "Medium"
+    assert confidence(mk("Numbered verse", checks=["crosses pages"]), 70) == "Medium"
+    assert confidence(mk("No number - line count"), 70) == "Low"
+    assert confidence(mk("Numbered verse", conf=60), 70) == "Low"
+    assert confidence(mk("Numbered verse", checks=["a", "b"]), 70) == "Low"
