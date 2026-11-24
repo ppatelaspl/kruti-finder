@@ -115,6 +115,7 @@ _CUE_LETTER = re.compile(r"(?<=[^\s\d.।॥0])0\s*[रपछ]\s*\.(?=\s|$)")   
 # "… લાગીરે. સ્હાવ ૧૩. …", "… સા પ. …": a short refrain cue (its ० misread), number, stop
 _CUE_WORD_NUMBER = re.compile(r"(?<=\s)[^\s\d]{1,6}\s+(\d{1,2})\s*\.(?=\s|$)")
 _CUE_WORD_LETTER = re.compile(r"(?<=\s)[^\s\d]{1,6}\s+[रपछझ]\s*\.(?=\s|$)")
+_TRAILING_CUE = re.compile(r"\s*[।॥]?\s*[^\s\d।॥]{0,3}0\s*[।॥]+")
 _FOOTNOTES = re.compile(r"(?:^|\s)\d{1,2}\s*[.\-–]\s*[^\s\d.\-]")
 _NUM_DANDA = re.compile(r"(?:(?<=\s)|^)(\d{1,3})\s*[।॥]+")      # "४।।": ॥४॥ missing its first ॥
 _DANDA_NUM = re.compile(r"[।॥]+\s*(\d{1,3})\s*(?:[।॥)]+|(?=\s*$))")   # "।।३॥", "॥१", "॥११)।"
@@ -156,12 +157,18 @@ def _marks(pattern, text: str) -> list:
         if not any(m.start() - 2 <= e <= m.end() + 3 for e in found):
             found[m.end()] = int(m.group(1)) if m.groups() else None
     marks = [(e, n) for e, n in sorted(found.items()) if n != 0]   # ०, ०० is a refrain cue
+    # "॥ २१॥ उ० ॥": a refrain cue right after the number closes the same gatha
+    marks = [(e + (m.end() if (m := _TRAILING_CUE.match(mt[e:])) and n is not None else 0), n)
+             for e, n in marks]
     # "॥ ३१० ॥ ૧ ॥": a refrain cue read as a number right before the verse number
     keep = []
     for e, n in marks:
         if keep and n is not None and keep[-1][1] is not None and e - keep[-1][0] <= 6 \
                 and not re.search(r"[^\W\d_]", re.sub(r"[।॥\d\s]", "", mt[keep[-1][0]:e])):
-            keep.pop()
+            if n >= 10 and n % 10 == 0 and keep[-1][1] % 10 != 0:
+                keep[-1] = (e, keep[-1][1])      # "॥ २१॥ ૭૦ ॥": ૭૦ is the cue उ०, after 21
+                continue
+            keep.pop()                           # "॥ ३१० ॥ ૧ ॥": ३१० is the cue, before 1
         keep.append((e, n))
     return keep
 

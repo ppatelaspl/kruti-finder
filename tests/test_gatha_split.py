@@ -372,3 +372,10 @@ def test_dots_mark_right_before_a_numbered_refrain_line_is_dropped():
         rows += [a, b, c]
     g = gathas([L("સજઝાય", "heading")] + rows)
     assert [(x.first, x.last) for x in g][1] == ("પદ 2 પહેલી પંક્તિ", "મોહ રે ઉતારો મુનિરાજજી 2")
+
+
+def test_refrain_cue_right_after_the_number_stays_with_its_gatha():
+    g = gathas([L("सिज्झाय", "heading"), L("कलिल हवे दिन सातमे । अखुद दिन सात ॥"),
+                L("अरबुदथी पेसी वधै। घनमांस कहात ॥ २१॥ उ० ॥ मांसतणी बोटी हुवे । अम्तासी"),
+                L("प्रथम मास जिनवर कहे। मन धरो निस्संक ॥ २२ ॥ उ० ॥ सुथिर मांसबीजै")])
+    assert g[0].last.endswith("॥ २१॥ उ० ॥") and g[1].first == "मांसतणी बोटी हुवे । अम्तासी"
