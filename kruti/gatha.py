@@ -315,8 +315,9 @@ def _source(pieces) -> str:
 def _gatha(part, no, pieces, how, cfg, extra=()) -> Gatha:
     first = pieces[0].text
     last = pieces[-1].text
-    if len(pieces) > 1 and not re.search(r"[^\W\d_]", re.sub(r"[।॥|]", "", last)):
-        last = f"{pieces[-2].text} {last}"          # a verse mark alone on its line
+    bare = re.sub(r"[।॥|.\s\d०-९૦-૯]", "", re.sub(r"\S*[0०૦](?=[\s.।॥]|$)", "", last))
+    if len(pieces) > 1 and not re.search(r"[^\W\d_]", bare):
+        last = f"{pieces[-2].text} {last}"          # a verse mark (and cue) alone on its line
     confs = [p.line.conf for p in pieces]
     pages = (pieces[0].line.page, pieces[-1].line.page)
     g = Gatha(part, no, first, last, pages, how, round(sum(confs) / len(confs), 1),

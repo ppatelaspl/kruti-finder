@@ -114,7 +114,7 @@ _CUE_NUMBER = re.compile(r"(?<=[^\s\d.।॥0])0\s*(\d{1,2})\s*\.?(?=\s|$)")
 _CUE_LETTER = re.compile(r"(?<=[^\s\d.।॥0])0\s*[रपछ]\s*\.(?=\s|$)")         # "आज० છ.": ૭ as a letter
 _FOOTNOTES = re.compile(r"(?:^|\s)\d{1,2}\.\s*[^\s\d]")
 _NUM_DANDA = re.compile(r"(?:(?<=\s)|^)(\d{1,3})\s*[।॥]+")      # "४।।": ॥४॥ missing its first ॥
-_DANDA_NUM = re.compile(r"[।॥]+\s*(\d{1,3})\s*[।॥]+")              # "।।३॥": a number in doubled dandas
+_DANDA_NUM = re.compile(r"[।॥]+\s*(\d{1,3})\s*(?:[।॥)]+|(?=\s*$))")   # "।।३॥", "॥१", "॥११)।"
 
 
 def _marks(pattern, text: str) -> list:

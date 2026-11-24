@@ -477,3 +477,10 @@ def test_number_after_a_refrain_cue_inside_the_line_is_a_mark():
     for t, want in cases:
         lines, _ = classify_book([page(1, [(t, 60, 350)])], CFG)
         assert [n for _, n in lines[0].marks] == want, t
+
+
+def test_number_with_a_missing_closing_danda_is_a_mark():
+    for t, n in (("शांति चौमासुं रहीया, सुरनर पति मन भाव्यां ॥ भवि०॥१", 1),
+                 ("जयराम मुनिश्र, सिद्ध थया नही होय ॥ भवि० ॥११)।", 11)):
+        lines, _ = classify_book([page(1, [(t, 60, 350)])], CFG)
+        assert [m for _, m in lines[0].marks] == [n], t

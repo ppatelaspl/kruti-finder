@@ -320,3 +320,10 @@ def test_tune_line_after_a_finished_gatha_starts_a_new_kruti():
     lines[7:] = [L(x.text.replace("॥1॥", "॥9॥")) if "॥1॥" in x.text else x for x in lines[7:]]
     ks = split_gathas([L("स्तवन", "heading")] + lines, CFG)
     assert [len(k.gathas) for k in ks] == [3, 3]
+
+
+def test_last_piece_of_only_a_cue_and_number_joins_the_line_before():
+    rows = [L("पद एक पहली पंक्ति रे,"), L("पद एक दूसरी पंक्ति रे. आज० 1. पद दो पहली रे,"),
+            L("पद दो दूसरी पंक्ति काया रे."), L("आज० 2. पद तीन पहली रे,"), L("पद तीन दूसरी रे. आज० 3.")]
+    g = gathas([L("स्तवन", "heading")] + rows)
+    assert g[1].last == "पद दो दूसरी पंक्ति काया रे. आज० 2."
