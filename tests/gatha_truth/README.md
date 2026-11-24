@@ -38,3 +38,17 @@ Measured 2026-11-24 with `python tools/eval_gatha.py --set …` (fuzzy match ≥
 
 The unseen books are below the 90% bar. Per book (unseen): B007712 Kruti 4/5, gathas 18/21;
 B021879 6/10, 64/75; S027836 3/7, 26/48; S037822 0/7, 22/28.
+
+### Round 2 (all sample books)
+
+The 4 round-1 unseen books moved into tuning, and 13 more books were labelled for tuning,
+21 labelled ranges in all (plus B052034's front matter). 7 fresh books were held out as
+the new unseen set: B035022, S037974, B018723, B041178, S022020, B019948, B024736.
+S022020 and B019948 are prose only.
+
+| Set | Kruti | Gathas | First line | Last line | Extra rows |
+|---|---|---|---|---|---|
+| tune (21 books) | 75.0% | 89.3% | 83.6% | 80.7% | 8.7% |
+| unseen round 2 (first and only run) | 76.7% | 77.8% | 67.0% | 57.6% | 16.4% |
+
+Prose-only unseen books produced 0 rows. Gatha lines are still below the 90% bar on new books.
