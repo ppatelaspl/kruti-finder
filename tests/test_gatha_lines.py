@@ -660,3 +660,15 @@ def test_part_heading_at_the_start_of_a_line_is_split_off():
     got = [(t.text, t.kind) for t in lines if "ढाल" in t.text or "सोरीपुर" in t.text]
     assert got[0][1] == "part" and "सोरीपुर" not in got[0][0]
     assert got[1][0].startswith("सोरीपुर") and got[1][1] == "verse" and not got[1][1] == "part"
+
+
+def test_type_word_serial_then_tune_word_is_heading():
+    for title in ("ગાયન ૨૬ રાગ કયાં ખસીઆ વસીઆ,", "ગાયત ૧૯ રાગ ઉસી તારો દોકરો", "ગાયન ૨૩ સુ. રાગ. ધણા ધણા ધોકાર,"):
+        pages = [page(1, PREV_END + [(title, LEFT, 250)] + NEXT)]
+        assert kind_of(pages, title) == "heading", title
+
+
+def test_verse_starting_with_a_word_like_a_type_word_and_a_decimal_is_not_heading():
+    line = ("सूअर 7.4 रे कुड कणुतणु राचे विष्ठा रे पूर", LEFT, 300)
+    pages = [page(1, PREV_END + [line] + NEXT)]
+    assert kind_of(pages, line[0]) != "heading"

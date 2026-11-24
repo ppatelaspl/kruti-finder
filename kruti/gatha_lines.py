@@ -613,9 +613,9 @@ def _boundary_headings(lines, title_keys):
             t.kind = "heading"
 
 
-def _type_word(word: str, keys) -> bool:
+def _type_word(word: str, keys, cut=80) -> bool:
     k = key_only(word)
-    return len(k) >= 2 and any(k == x or (len(x) >= 3 and fuzz.ratio(k, x) >= 80) for x in keys)
+    return len(k) >= 2 and any(k == x or (len(x) >= 3 and fuzz.ratio(k, x) >= cut) for x in keys)
 
 
 def _convention_headings(lines, cfg, title_keys):
@@ -626,6 +626,7 @@ def _convention_headings(lines, cfg, title_keys):
     ordinals = {key_only(w) for w in cfg["serial_ordinals"]}
     atha = {key_only(w) for w in cfg["atha_words"]}
     likh = {key_only(w) for w in cfg["likhyate_words"]}
+    tunes = {key_only(w) for w in cfg["tune_words"]} | {key_only("राम")}   # राम: राग misread
     body = [t for t in lines if t.kind != "furniture"]
     for i, t in enumerate(body):
         bare = t.kind == "heading" and re.fullmatch(r"\s*(\d{1,3})\s*[.]?\s*", t.light)
@@ -641,11 +642,14 @@ def _convention_headings(lines, cfg, title_keys):
         if not words or len(words) > 12:
             continue
         nxt = body[i + 1] if i + 1 < len(body) else None
-        if len(words) >= 2 and _type_word(words[0], keys) and re.match(r"\d", words[1]):
+        has_tune = any(key_only(w) in tunes for w in words[2:4])
+        if (len(words) >= 2 and _type_word(words[0], keys, 75 if has_tune else 80)
+                and re.match(r"\d+(?![.,]\d)", words[1])):
             after = re.sub(r"^\d+", "", words[1])
             rest = words[2:]
-            ord_ok = (after[:1] in ".)" and after != "") or not rest or \
-                key_only(re.split(r"[,.\-–:]", rest[0])[0]) in ordinals
+            nxt_key = key_only(re.split(r"[,.\-–:]", rest[0])[0]) if rest else ""
+            ord_ok = (after[:1] in ".)" and after != "") or not rest or nxt_key in ordinals \
+                or nxt_key in tunes or (len(nxt_key) <= 2 and rest[0].endswith("."))   # "સુ." ≈ "મું."
             if ord_ok:
                 t.kind = "heading"
                 continue
