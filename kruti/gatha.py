@@ -302,6 +302,15 @@ def _split_unnumbered(pieces, cfg):
         score = sum(at) / len(at) - (sum(other) / len(other) if other else 0)
         if score >= 0.5 and (best is None or score > best[0]):
             best = (score, k)
+    if not best:                        # couplets: half-lines end in , or ; gatha ends do not
+        for k in (2, 4):
+            if n < 2 * k or n % k:
+                continue
+            half = [pieces[i].text.rstrip()[-1:] in ",;" for i in range(n) if (i + 1) % k]
+            ends = [pieces[i].text.rstrip()[-1:] not in ",;" for i in range(k - 1, n, k)]
+            if sum(half) >= 0.7 * len(half) and sum(ends) >= 0.7 * len(ends):
+                best = (0, k)
+                break
     if best:
         k = best[1]
         return [pieces[i:i + k] for i in range(0, n, k)], BY_COUNT
