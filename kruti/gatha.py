@@ -146,7 +146,7 @@ def _units(lines, cfg) -> list:
         if t.kind == "prose":
             prose_since_mark = True
             prose_lines += 1
-            if opener.match(t.light):
+            if opener.match(t.light) or t.gloss:
                 cur.commentary = True
                 run_opener = True
             if not any(isinstance(x, _Piece) for x in cur.items):

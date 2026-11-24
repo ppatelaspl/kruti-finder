@@ -618,3 +618,28 @@ def test_centred_number_inside_an_open_gatha_is_not_a_serial():
                                                ("१", 205, 215), ("संघ चतुविध स्थापवा, महसेन वन आयो ॥1॥", LEFT, 330)] + NEXT
     lines, _ = classify_book([page(1, rows)], CFG)
     assert {ln.text: ln.kind for ln in lines}["१"] != "heading"
+
+
+def test_explanation_ending_in_the_gatha_number_in_brackets_is_left_out():
+    """Commentary books: "૨. શ્રી વીર … છે. (૨)" after gatha 2 explains it; the Kruti goes on."""
+    from kruti.gatha import split_gathas
+    rows = [("શ્રી ગૌતમસ્વામીનો રાસ", 150, 280)]
+    for n in (1, 2, 3):
+        d = "૧૨૩"[n - 1]
+        rows += [("બેસતા વર્ષ પરોઢિયે, પામ્યા કેવલનાણે;", 120, 250),
+                 (f"તે ગૌતમ ગુરુ રાસને, વિરચું ધરી બહુમાન. {d}.", 120, 280),
+                 (f"{'૪૫૬'[n - 1]}. કાર્તિક સુદિ એકમે બેસતું વર્ષ ઊજવાય છે. તે દિવસે વહેલી સવારે", 80, 355),
+                 (f"થયેલું, તે ગૌતમગુરુનો રાસ હું બહુમાનપૂર્વક રચું છું. ({d}).", LEFT, 300)]
+    ks = split_gathas(classify_book([page(1, rows)], CFG)[0], CFG)
+    assert len(ks) == 1
+    assert [(g.first, g.last) for g in ks[0].gathas] == [
+        ("બેસતા વર્ષ પરોઢિયે, પામ્યા કેવલનાણે;", f"તે ગૌતમ ગુરુ રાસને, વિરચું ધરી બહુમાન. {d}.") for d in "૧૨૩"]
+
+
+def test_bracketed_serial_alone_after_a_gatha_is_not_an_explanation_end():
+    rows = [("ચંપાપુરી સિદ્ધ તુમે, બારમા જિન સુખકાર,", 120, 260),
+            ("ધર્મ વિષે મોહે નહીં, મુક્તિ વધુ ભરતાર ॥૧॥", 120, 270),
+            ("(૧)", 200, 215),
+            ("શ્રી વિમલ જિન સ્તવન", 150, 260)] + NEXT
+    lines, _ = classify_book([page(1, PREV_END + rows)], CFG)
+    assert not any(t.gloss for t in lines)

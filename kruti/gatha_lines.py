@@ -95,6 +95,7 @@ class TLine:
     indent: float             # start, as a share of the text width from the text's left edge
     fill: float               # width, as a share of the text width
     marks: list = field(default_factory=list)   # [(end offset in text, number or None)]
+    gloss: bool = False       # an explanation tied to its gatha (… (૪).): the Kruti goes on
 
 
 def mark_text(text: str) -> str:
@@ -277,6 +278,7 @@ def classify_book(pages: list, cfg: dict) -> tuple:
     _boundary_headings(out, title_keys)
     _convention_headings(out, cfg, title_keys)
     _sequence_marks(out)
+    _numbered_glosses(out)
     _headings_need_verse(out)
     return out, printed
 
@@ -672,6 +674,31 @@ def _sequence_marks(lines):
         if n == last + 1 or (last and n == last + 2):
             t.marks = [(m.end(1), n)]
             last = n
+
+
+_GLOSS_END = re.compile(r"\(\s*(\d{1,3})\s*\)\s*[.।]?\s*$")
+
+
+def _numbered_glosses(lines, max_lines=12):
+    """Commentary books: an explanation after gatha n ends with "(n)" ("… રચું છું. (૩)."):
+    the lines from that gatha up to it are prose, tied to the gatha, and the Kruti goes on."""
+    body = [t for t in lines if t.kind != "furniture"]
+    last_no, last_i = None, None
+    for i, t in enumerate(body):
+        m = _GLOSS_END.search(mark_text(t.text))
+        run = body[last_i + 1:i + 1] if last_i is not None else []
+        if (m and last_no is not None and int(m.group(1)) == last_no and 0 < i - last_i <= max_lines
+                and len(mark_text(t.text)[:m.start()].split()) >= 2      # "… છું. (૩)", not "(૧)"
+                and any(u.fill >= 0.8 for u in run)):                    # a paragraph, not verse
+            for u in body[last_i + 1:i + 1]:
+                u.kind, u.gloss, u.marks = "prose", True, []
+            last_no = None
+            continue
+        if t.kind in ("heading", "part"):
+            last_no = None
+        nums = [n for _, n in t.marks if n is not None]
+        if t.kind == "verse" and nums:
+            last_no, last_i = nums[-1], i
 
 
 def _headings_need_verse(lines):
