@@ -106,6 +106,8 @@ _END_GARBLED = re.compile(r"0\s+[रपछ]\s*\.?\s*$")
 
 
 _AFTER_STOP_NUMBER = re.compile(r"[^\s\d.।॥;][.।॥;]\s*(\d{1,3})\s*\.?\s*$")
+# "…जिनेश्वरं...२नेव्‌", ". . .४नेवु", ". . . ५. . .": a number after dots, a cue glued on
+_DOTS_NUMBER = re.compile(r"(?:\.\s*){2,}[-–]?\s*(\d{1,3})\s*[^\s\d.]{0,8}[\s.]*$")
 _FOOTNOTES = re.compile(r"(?:^|\s)\d{1,2}\.\s*[^\s\d]")
 _NUM_DANDA = re.compile(r"(?:(?<=\s)|^)(\d{1,3})\s*[।॥]+")      # "४।।": ॥४॥ missing its first ॥
 _DANDA_NUM = re.compile(r"[।॥]+\s*(\d{1,3})\s*[।॥]+")              # "।।३॥": a number in doubled dandas
@@ -119,6 +121,12 @@ def _marks(pattern, text: str) -> list:
         inside = [e for e in found if m.start() < e <= m.end()]
         if all(found[e] is None for e in inside):
             for e in inside:
+                del found[e]
+            found[m.end()] = int(m.group(1))
+    if not any(n is not None for n in found.values()):
+        m = _DOTS_NUMBER.search(mt)
+        if m:
+            for e in [e for e in found if e >= m.start()]:
                 del found[e]
             found[m.end()] = int(m.group(1))
     if not found:                         # "… डांग. २": a number right after a sentence end
@@ -240,7 +248,7 @@ def _running_edges(lights: dict, title_keys=()) -> set:
         for i in idx[:1] + idx[-1:]:
             key = _furniture_key(ls[i])
             title = re.sub(r"^[\s\d.()\[\]]+", "", ls[i]).strip(" .।॥")
-            if (len(key) >= 6 and len(re.findall(r"[,;]", ls[i])) < 2
+            if (6 <= len(key) and len(ls[i]) <= 70 and len(re.findall(r"[,;]", ls[i])) < 2
                     and not _is_title(title, title_keys, [], 85)):   # a Kruti's own heading
                 cands[(pg, i)] = key
     found = set()
@@ -523,9 +531,10 @@ def _boundary_headings(lines, title_keys):
         words = core.split()
         if re.search(r"[,;।॥]", core) or not 2 <= len(words) <= 10:
             continue
-        if not any(key_only(w) in title_keys for w in words):
-            continue
         prev, nxt = (body[i - 1] if i else None), body[i + 1]
+        centred = t.indent >= 0.2 and abs(t.indent + t.fill / 2 - 0.5) < 0.12 and len(words) <= 4
+        if not centred and not any(key_only(w) in title_keys for w in words):
+            continue
         at_boundary = (prev is None or prev.kind != "verse" or bool(prev.marks)
                        or bool(_REFRAIN_CUE.search(_core(prev.light)))
                        or bool(re.search(r"\d\W*$", prev.light)))       # "… .૧૯"

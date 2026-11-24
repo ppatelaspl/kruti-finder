@@ -404,3 +404,28 @@ def test_full_width_line_with_inner_double_dandas_is_verse():
     rows = [("મૈ રહ્યો વિષય ભર પૂર, ગરવર્મે गधा ॥ ગર” ॥ મેં બાત હુઓ હે-", 60, 360),
             ("રાન, ०८०२ જીગ ધંધા ॥ મેં રુચુર્‌ मेया જેર, જોગી ઓર જંદા |", 60, 360)]
     assert [k for _, k in kinds([page(1, rows + rows)])] == ["verse"] * 4
+
+
+# ---- round 2, S027836 (numbers after dots, refrain cue glued to the number)
+def test_dots_number_with_a_glued_refrain_cue_is_a_mark():
+    for t, n in (("स्वयंप्रभ देवश्रुत वली, उदयनाथ जिनेश्वरं...२नेव्‌", 2),
+                 ("योग अयोगश्री परम प्रभुजी जात नीकेशरं. . .४नेवु", 4),
+                 ("मन वच काया स्थिर करी, कीत्तिचंद्र गुण गेह. . . ५. . .", 5)):
+        lines, _ = classify_book([page(1, [(t, 60, 350)])], CFG)
+        assert [m for _, m in lines[0].marks] == [n], t
+
+
+def test_long_last_line_of_each_page_is_not_a_running_footer():
+    ends = ["अघटित भ्रमणेन्द्र प्रभु ऋषभवचंद्रजी अघहरं . .. ६नेवू",
+            "अश्ववृन्द कुटिलक वर्धेमान नन्दिकेशना जिन धर्मचन्द्र अघहरं . . ७नेवू",
+            "गुरु रूपकीर्ति हृदय धरी ने माणेक मुनि सुखकरं... १३नेवु"]
+    pages = [page(n, VERSES + [(e, 60, 350)]) for n, e in enumerate(ends, 1)]
+    lines, _ = classify_book(pages, CFG)
+    assert all(t.kind == "verse" for t in lines if t.text in ends)
+
+
+def test_short_centred_title_between_krutis():
+    t = "एकादशी सामान्य"
+    rows = VERSES + [(t, 160, 250), ("शासन नायक वीरजी, केवल पायो,", 60, 280),
+                     ("संघ चतुविध स्थापवा, महसेन वन आयो...१...", 60, 340)]
+    assert kind_of([page(1, PROSE + rows)], t) == "heading"
