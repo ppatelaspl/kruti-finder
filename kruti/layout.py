@@ -227,9 +227,10 @@ def _ocr(png: bytes, page_no: int, width: float, height: float, cfg) -> PageLayo
                       order_lines(lines, width))
 
 
-def read_layout(pdf_path: str, cfg, on_page=None, checkpoint=None) -> list:
-    """PageLayout for every page. on_page(done, total, source) after each page;
-    checkpoint() between pages may block (pause) or raise (cancel)."""
+def read_layout(pdf_path: str, cfg, on_page=None, checkpoint=None, only=None) -> list:
+    """PageLayout for every page (or only the PDF pages in `only`). on_page(done, total,
+    source) after each page; checkpoint() between pages may block (pause) or raise
+    (cancel)."""
     checkpoint = checkpoint or (lambda: None)
     cache_file = _cache_path(pdf_path, cfg)
     workers = max(1, int(cfg["ocr_workers"]))
@@ -238,10 +239,12 @@ def read_layout(pdf_path: str, cfg, on_page=None, checkpoint=None) -> list:
 
     with pymupdf.open(pdf_path) as doc:
         total = doc.page_count
-        done = _read_cache(cache_file, total)
+        wanted = sorted(n for n in (only or range(1, total + 1)) if 1 <= n <= total)
+        done = {n: p for n, p in _read_cache(cache_file, total).items() if n in set(wanted)}
+        total = len(wanted)
         if on_page and done:
             on_page(len(done), total, "cache")
-        todo = [i for i in range(total) if i + 1 not in done]
+        todo = [n - 1 for n in wanted if n not in done]
         if not todo:
             return [done[i] for i in sorted(done)]
         pool = ThreadPoolExecutor(max_workers=workers)

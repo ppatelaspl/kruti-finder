@@ -89,3 +89,19 @@ def test_cache_ignores_torn_last_line(tmp_path):
     done = _read_cache(str(p), page_count=5)
     assert sorted(done) == [1, 2]
     assert done[1].lines[0].text == "क"
+
+
+def test_read_layout_only_some_pages(tmp_path):
+    import pymupdf
+    from kruti.gatha_lines import gatha_config
+    from kruti.layout import read_layout
+    pdf = tmp_path / "b.pdf"
+    doc = pymupdf.open()
+    for i in range(5):
+        doc.new_page().insert_text((72, 72), f"page {i + 1}")
+    doc.save(pdf)
+    cfg = gatha_config({"layout_cache_dir": str(tmp_path / "cache"), "min_indic_ratio": 0.0, "min_text_chars": 1})
+    got = read_layout(str(pdf), cfg, only={2, 4})
+    assert [p.page for p in got] == [2, 4]
+    assert [ln.text for ln in got[0].lines] == ["page 2"]
+    assert [p.page for p in read_layout(str(pdf), cfg)] == [1, 2, 3, 4, 5]
