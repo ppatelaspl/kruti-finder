@@ -9,13 +9,14 @@ from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QFileDialog, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
     QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit,
-    QFrame, QProgressBar, QPushButton, QScrollArea, QSpinBox, QVBoxLayout,
+    QFrame, QProgressBar, QPushButton, QScrollArea, QSpinBox, QTabWidget, QVBoxLayout,
     QWidget)
 
 from kruti.config import merged
 from kruti.ocr_setup import configure_ocr, resource_dir
 from kruti.pipeline import collect_pdfs
 
+from .gatha_tab import GathaTab
 from .version import __version__
 from .worker import RunWorker
 
@@ -92,7 +93,14 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(root)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._header())
-        layout.addWidget(_scrollable(self._find_tab()))
+        self.ocr_ok = False
+        self.tabs = QTabWidget()
+        self.tabs.addTab(_scrollable(self._find_tab()), "Find Kruti (Excel match)")
+        self.gatha_tab = GathaTab(self.settings, data_dir, BooksList, _open, _fmt_time,
+                                  lambda: self.ocr_ok)
+        self.gatha_tab.busy_changed.connect(self._gatha_busy)
+        self.tabs.addTab(_scrollable(self.gatha_tab), "Gatha Lines")
+        layout.addWidget(self.tabs)
         self.setCentralWidget(root)
         # fit smaller laptop screens (e.g. 1366x768); the page scrolls when space runs out
         avail = self.screen().availableGeometry()
@@ -107,7 +115,7 @@ class MainWindow(QMainWindow):
         h.setContentsMargins(20, 12, 20, 12)
         col = QVBoxLayout()
         col.addWidget(QLabel("Kruti Finder", objectName="title"))
-        col.addWidget(QLabel("Read the books · list every Kruti · flag the ones in the Excel",
+        col.addWidget(QLabel("Read the books · list every Kruti · match the Excel or list each gatha",
                              objectName="subtitle"))
         h.addLayout(col)
         h.addStretch()
@@ -351,9 +359,17 @@ class MainWindow(QMainWindow):
         self.thread.finished.connect(self._cleanup_thread)
         self.thread.start()
 
+    def _gatha_busy(self, busy):
+        """Only one run at a time: the Gatha Lines tab is running."""
+        if not self.worker:
+            self.start_btn.setEnabled(not busy)
+
     def _set_running(self, running):
         for w in (self.start_btn, self.books, self.excel_edit, self.out_edit):
             w.setEnabled(not running)
+        if running and self.gatha_tab.running:
+            self.start_btn.setEnabled(False)
+        self.gatha_tab.set_locked(running)
         self.pause_btn.setEnabled(running)
         self.cancel_btn.setEnabled(running)
         self.pause_btn.setText("Pause")
@@ -439,6 +455,12 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ close
     def closeEvent(self, e):
+        if self.gatha_tab.running:
+            if QMessageBox.question(self, "Kruti Finder", "Processing is running. Stop and "
+                                                          "quit?") != QMessageBox.Yes:
+                e.ignore()
+                return
+        self.gatha_tab.stop_for_exit()
         if self.worker:
             if QMessageBox.question(self, "Kruti Finder", "Processing is running. Stop and "
                                                           "quit?") != QMessageBox.Yes:
