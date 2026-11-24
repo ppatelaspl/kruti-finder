@@ -672,3 +672,10 @@ def test_verse_starting_with_a_word_like_a_type_word_and_a_decimal_is_not_headin
     line = ("सूअर 7.4 रे कुड कणुतणु राचे विष्ठा रे पूर", LEFT, 300)
     pages = [page(1, PREV_END + [line] + NEXT)]
     assert kind_of(pages, line[0]) != "heading"
+
+
+def test_inline_heading_after_ocr_debris_is_split_off():
+    line = ("` .पद चोथुं ॥ केरबो ॥ जलांजी मेरो नेम चढ्यो गिरनार, एकेली छोडी", LEFT, 355)
+    lines, _ = classify_book([page(1, PREV_END + [line] + NEXT)], CFG)
+    heads = [t.text for t in lines if t.kind == "heading"]
+    assert heads and "चोथुं" in heads[0] and "जलांजी" not in heads[0]

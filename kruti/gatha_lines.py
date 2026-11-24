@@ -467,7 +467,7 @@ _SERIAL_ONLY = re.compile(r"^[\s।॥|`'\"]*[(\[]\s*[\dA-Za-z\u0900-\u0aff]{1,3
 _ORNAMENT = "€©ॐ®✽❀❁✿*>«»~"
 _FRAMED = re.compile(rf"^\s*[{_ORNAMENT}`'\"]+\s*\S.*\S\s*[{_ORNAMENT}]+\s*$|^\s*[{_ORNAMENT}]+\s*\S.*$|^.*\S\s*[{_ORNAMENT}]+\s*$")
 # "पद त्रीजुं ॥ राग केरबो ॥ प्रभु मेरे …": a Kruti heading printed before the first verse
-_INLINE_HEAD = re.compile(r"^\s*(\S+)(?:\s+\S+){1,2}?\s*॥(?:\s*राग[^॥]{0,40}॥)?\s*(?=\S)")
+_INLINE_HEAD = re.compile(r"^[\s`'\".,]*(\S+)(?:\s+\S+){1,2}?\s*॥(?:\s*राग[^॥]{0,40}॥)?\s*(?=\S)")
 _QUOTED = re.compile(r"[।॥]\s*[”\"’]")
 _SERIAL_START = re.compile(r"^[\s।॥]*(\(\s*\S{1,3}\s*\)|\d{1,4}\s*[.)]|\d{1,4}\s)\s*")
 
