@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples-extra/jain_stavan_sazzayamala_guj.pdf"
 PAGES = (33, 36)
 # Kruti 11 and 12 have no gatha numbers: each printed line (11) / stanza ending in a

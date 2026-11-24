@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples-extra/atmanand_stavanavali_1917_hin.pdf"
 PAGES = (124, 127)
 # द्वादश भावना printed as run-on paragraphs; each gatha ends mid-line at "cue ॥ n ॥".

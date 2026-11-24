@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples-extra/jain_lavani_sangrah_1923_hin.pdf"
 PAGES = (80, 83)
 # Lavanis printed as run-on paragraphs; each gatha ends mid-line at "cue ॥ n ॥" (54 also

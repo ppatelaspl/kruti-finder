@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples-extra/stavanavali_1960_hin.pdf"
 PAGES = (79, 82)
 # Run-on prose layout: gathas end mid-line at "। स० n ।" / "बा० n ।" etc. Page 79 opens

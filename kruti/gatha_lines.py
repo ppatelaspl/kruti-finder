@@ -330,6 +330,7 @@ def _is_index_page(lines, cfg) -> bool:
 _REFRAIN_CUE = re.compile(r"[^\W\d_][^\s]*0\W*$")     # "મનડુ'૦", "ધન્ય૦": a refrain cue
 # "… રે", "… जो": a gatha line's closing particle; "….ભાખ્યા.": a refrain after dots
 _PARTICLE_END = re.compile(r"(?:^|\s)(?:रे|रे़|रै|जी|जो|हो|लाल|राज)\W*$")
+_ABBREV_CUE = re.compile(r"[,;.]\s*[^\s\d.,;।॥]{1,6}[.,]?\s*$")     # "…, સ્વા.": an abbreviated refrain
 REFRAIN_AFTER_DOTS = re.compile(r"(?:\.{3,}|…)\s*[^\W\d_]")
 
 
@@ -506,6 +507,7 @@ def verse_like(t) -> bool:
     s = _core(t.light).rstrip()
     return bool(t.marks) or bool(s) and (s[-1] in ",;।॥!?" or bool(_PARTICLE_END.search(s))
                                          or bool(_REFRAIN_CUE.search(s))
+                                         or bool(_ABBREV_CUE.search(s))
                                          or bool(REFRAIN_AFTER_DOTS.search(t.light)))
 
 

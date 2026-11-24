@@ -272,6 +272,31 @@ def _weight(text: str) -> float:
     return 1.0 if s.endswith("॥") else 0.75 if s.endswith(".") else 0.5 if s.endswith((";", "।")) else 0.0
 
 
+def _last_word(text: str) -> str:
+    from .normalize import key_only
+    words = re.sub(r"[\W\d_]+$", "", text.strip()).split()
+    return key_only(words[-1]) if words else ""
+
+
+def _refrain_word_ends(pieces):
+    """Cut points after each piece ending in the block's refrain word ("સ્વા." on line after
+    line), or None. The word is short (an abbreviated refrain), closes at least 3 pieces and
+    40% of them, and closes the last piece too."""
+    from rapidfuzz import fuzz
+    lasts = [_last_word(p.text) for p in pieces]
+    counts = {}
+    for w in lasts:
+        if 2 <= len(w) <= 5:
+            counts[w] = counts.get(w, 0) + 1
+    if not counts:
+        return None
+    word = max(counts, key=counts.get)
+    hits = [i for i, w in enumerate(lasts) if w and fuzz.ratio(w, word) >= 70]
+    if len(hits) < 3 or len(hits) < 0.4 * len(pieces) or hits[-1] != len(pieces) - 1:
+        return None
+    return [i + 1 for i in hits[:-1]]
+
+
 def _split_unnumbered(pieces, cfg):
     """[(pieces)] and how, or (None, None) when no layout or ending pattern agrees."""
     n, max_len = len(pieces), cfg["long_gatha_lines"]
@@ -285,6 +310,9 @@ def _split_unnumbered(pieces, cfg):
     ends = [i + 1 for i in range(n - 1) if REFRAIN_AFTER_DOTS.search(pieces[i].line.light)]
     if len(ends) >= 1 and REFRAIN_AFTER_DOTS.search(pieces[-1].line.light) and (parts := cut(ends)):
         return parts, BY_GAP                     # each stanza closes with its refrain cue
+    ends = _refrain_word_ends(pieces)
+    if ends is not None and (parts := cut(ends)):
+        return parts, BY_GAP                     # "… સાથરે, સ્વા.": a repeated refrain word
     gaps = [i for i in range(1, n) if pieces[i].line.gap_above >= cfg["gatha_gap"]]
     if gaps and (parts := cut(gaps)):
         return parts, BY_GAP

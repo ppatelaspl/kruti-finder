@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples-extra/shravak_stavan_sangrah_bhag2_hin.pdf"
 PAGES = (160, 163)
 # Run-on prose layout: gathas end mid-line at "… ० n ॥". The refrain opening each Kruti,

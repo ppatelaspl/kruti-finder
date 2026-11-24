@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples-extra/stuti_vidya_samantabhadra_commentary_hin.pdf"
 PAGES = (83, 86)
 # Commentary book: only the stuti verses (॥३१॥, ॥३२॥) are gathas; the "( मुरजः )"

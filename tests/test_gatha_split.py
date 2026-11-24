@@ -393,3 +393,14 @@ def test_unnumbered_couplets_found_by_their_half_line_commas():
             L("તાહરી આણ શિર ધરું, કરું ભક્તિ ત્રણ કાળ,"), L("પ્રેમે જિન વિનવે, કીર્તિચંદ્ર સંભાળ")]
     g = gathas([L("(૨)", "heading")] + rows)
     assert len(g) == 3 and g[1].first.startswith("આસ ધરે")
+
+
+def test_unnumbered_stanzas_end_at_a_repeated_refrain_word():
+    """"… સાથરે, સ્વા.": the same short refrain word closing line after line ends each gatha."""
+    rows = ["સ્વામીજી સુજને સિધાચળ લેઈ ચાલ, હો ચાલ;", "વીએ ન કશી કર વામા, રોણે દીઠી છે, સ્વા.",
+            "ઘોધાબંદર જઈ કરીરે વામા, મળીએ સૈયરકેરે સાથરે, સ્વા.",
+            "પાલીતાણેનગરે જઈ કરીરે વામા, સફળ થઇ મુજ આશરે, સ્વા,",
+            "ગીરી દેખી લોચન ઠર્યાં વામા, સફળ થયો અવતારરે, સ્વા.",
+            "ઉંચાં દેરાં ચાંદીના રે વામા, ઉગમણે દરબારરે. સવા."]
+    g = gathas([L("શ્રી સિદ્ધાચલ સ્તવન", "heading")] + [L(r) for r in rows])
+    assert [(x.first, x.last) for x in g] == [(rows[0], rows[1])] + [(r, r) for r in rows[2:]]

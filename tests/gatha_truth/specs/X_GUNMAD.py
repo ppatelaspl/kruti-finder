@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples-extra/jain_gun_madhur_stavanavali_guj.pdf"
 PAGES = (14, 17)
 # ગાયન (songs) without gatha numbers: each stanza ends in a refrain cue ("છોડી", "પ્રભુ",

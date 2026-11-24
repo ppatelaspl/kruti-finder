@@ -1,4 +1,4 @@
-SET = "unseen"
+SET = "tune"
 FILE = "kruti-samples-extra/anandghan_stavanavali_guj.pdf"
 PAGES = (8, 11)
 # Anandghan stavans, 2 printed lines per gatha with the number at the end of the 2nd.
