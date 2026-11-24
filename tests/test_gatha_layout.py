@@ -105,3 +105,30 @@ def test_read_layout_only_some_pages(tmp_path):
     assert [p.page for p in got] == [2, 4]
     assert [ln.text for ln in got[0].lines] == ["page 2"]
     assert [p.page for p in read_layout(str(pdf), cfg)] == [1, 2, 3, 4, 5]
+
+
+def test_failed_ocr_page_is_not_cached(tmp_path, monkeypatch):
+    import pymupdf
+    import pytesseract
+    from kruti.gatha_lines import gatha_config
+    from kruti.layout import read_layout
+    pdf = tmp_path / "scan.pdf"
+    doc = pymupdf.open()
+    doc.new_page().draw_rect(pymupdf.Rect(50, 50, 200, 200))     # no text: goes to OCR
+    doc.save(pdf)
+    cfg = gatha_config({"layout_cache_dir": str(tmp_path / "cache"), "force_ocr": True})
+
+    def broken(*a, **k):
+        raise pytesseract.TesseractNotFoundError()
+    monkeypatch.setattr(pytesseract, "image_to_data", broken)
+    assert read_layout(str(pdf), cfg)[0].lines == []
+
+    calls = []
+
+    def works(*a, **k):
+        calls.append(1)
+        return {"text": ["नमो"], "conf": [90], "left": [10], "top": [10], "width": [50],
+                "height": [20], "block_num": [1], "par_num": [1], "line_num": [1]}
+    monkeypatch.setattr(pytesseract, "image_to_data", works)
+    assert [ln.text for ln in read_layout(str(pdf), cfg)[0].lines] == ["नमो"]
+    assert calls                     # the page was OCR'd again, not read empty from the cache

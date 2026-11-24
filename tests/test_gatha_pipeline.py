@@ -89,3 +89,37 @@ def test_cancel_raises(books, tmp_path):
     with pytest.raises(Cancelled):
         gp.run_gatha([str(good)], str(tmp_path / "out"), gatha_config(None), log=lambda *_: None,
                      ctl=ctl)
+
+
+def test_analysis_error_skips_only_that_book(books, tmp_path, monkeypatch):
+    good, prose, _ = books
+    real = gp.split_gathas
+
+    def flaky(lines, cfg):
+        if len(lines) <= 3:                              # the prose-only book
+            raise ZeroDivisionError("odd layout")
+        return real(lines, cfg)
+    monkeypatch.setattr(gp, "split_gathas", flaky)
+    logs = []
+    res = gp.run_gatha([str(prose), str(good)], str(tmp_path / "out"), gatha_config(None), log=logs.append)
+    assert res.skipped == ["prose"] and res.krutis == 2
+    assert any("SKIPPED" in m and "prose" in m for m in logs)
+
+
+def test_zero_width_page_does_not_crash():
+    from kruti.gatha_lines import classify_book
+    page = PageLayout(1, "ocr", 90, 0, 0, [Line("नमो अरिहंताणं ॥1॥", 0, 0, 0, 0, 90)])
+    classify_book([page], gatha_config(None))
+
+
+def test_locked_results_file_saved_under_another_name(books, tmp_path, monkeypatch):
+    good, _, _ = books
+    real = gp.write_gatha_results
+
+    def locked(path, *a):
+        if Path(path).name == "Gatha_Results.xlsx":
+            raise PermissionError("open in Excel")
+        return real(path, *a)
+    monkeypatch.setattr(gp, "write_gatha_results", locked)
+    res = gp.run_gatha([str(good)], str(tmp_path / "out"), gatha_config(None), log=lambda *_: None)
+    assert Path(res.results_path).name == "Gatha_Results (2).xlsx" and Path(res.results_path).exists()

@@ -231,7 +231,7 @@ def classify_book(pages: list, cfg: dict) -> tuple:
             gap = 0.0 if prev is None else max(0.0, (ln.y0 - prev.y1) / lh)
             # the line spacing itself is not a gap: measure only space beyond it
             prev = ln
-            w = width or (p.width * 0.8)
+            w = width or (p.width * 0.8) or 1.0
             lx = left.get(p.page % 2, 0) if width else 0
             head = _INLINE_HEAD.match(mark_text(text))
             if head and key_only(head.group(1)) in title_keys and len(text) - head.end() > 12:

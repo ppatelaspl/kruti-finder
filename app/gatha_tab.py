@@ -148,12 +148,12 @@ class GathaTab(QWidget):
         saved = s.value("gatha/books", [])
         saved = [saved] if isinstance(saved, str) else list(saved or [])
         self.books.add_paths([p for p in saved if p and Path(p).exists()])
-        self.workers_spin.setValue(int(s.value("workers", gatha_config(None)["ocr_workers"])))
+        self.workers_spin.setValue(int(s.value("gatha/workers", s.value("workers", gatha_config(None)["ocr_workers"]))))
 
     def save_settings(self):
         self.settings.setValue("gatha/out", self.out_edit.text())
         self.settings.setValue("gatha/books", self.books.paths())
-        self.settings.setValue("workers", self.workers_spin.value())
+        self.settings.setValue("gatha/workers", self.workers_spin.value())
 
     def _config(self):
         return gatha_config({"ocr_workers": self.workers_spin.value(),

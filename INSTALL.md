@@ -65,7 +65,8 @@ To uninstall: `sudo apt remove kruti-finder`
 
 1. Open the **Gatha Lines** tab. No Excel is needed.
 2. Add PDF files or folders, choose **Save results to**, click **Start**.
-   Progress, Pause, Resume and Cancel work as in the first tab, and saved page text is reused.
+   Progress, Pause, Resume and Cancel work as in the first tab. The Gatha tab keeps its own saved pages:
+   the first Gatha run reads a scanned book again even if the first tab already did; later runs reuse its pages.
 3. Click **Open results (Excel)**. `Gatha_Results.xlsx` has one row per gatha with its first and
    last line, PDF and book page, and a **Confidence** (High/Medium/Low) with the reason in *Check*.
    Review Medium and Low rows before using them.

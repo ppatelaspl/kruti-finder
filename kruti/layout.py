@@ -222,7 +222,7 @@ def _ocr(png: bytes, page_no: int, width: float, height: float, cfg) -> PageLayo
         conf = sum(confs) / len(confs) if confs else 0.0
     except Exception as e:  # noqa: BLE001 - one bad page must not stop a book
         log.warning("OCR failed on page %d: %s", page_no, e)
-        lines, conf = [], 0.0
+        return PageLayout(page_no, "failed", 0.0, width, height, [])   # not cached: retried next run
     return PageLayout(page_no, "ocr", round(conf, 1), width, height,
                       order_lines(lines, width))
 
@@ -253,8 +253,9 @@ def read_layout(pdf_path: str, cfg, on_page=None, checkpoint=None, only=None) ->
             with open(cache_file, "a", encoding="utf-8") as cache:
                 def record(p):
                     done[p.page] = p
-                    cache.write(json.dumps(asdict(p), ensure_ascii=False) + "\n")
-                    cache.flush()
+                    if p.source != "failed":
+                        cache.write(json.dumps(asdict(p), ensure_ascii=False) + "\n")
+                        cache.flush()
                     if on_page:
                         on_page(len(done), total, p.source)
 

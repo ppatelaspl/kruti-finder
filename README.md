@@ -100,9 +100,10 @@ How found, Confidence, Check, Remarks.
 - **Medium:** the gatha was split without a printed number (refrain, spacing, couplets), or one warning.
 - **Low:** split only by line count, low OCR quality, or several warnings (see *Check*).
 
-Measured on 28 labelled sample books: about 89% of gathas found, 82% of first lines and 80% of
-last lines correct. Old, low-resolution or damaged scans score much lower and need a manual
-check, so filter on *Confidence* and *Check* before using the rows.
+Accuracy: on the 28 labelled sample books the rules were tuned on, about 89% of gathas are found
+and 82% of first lines and 80% of last lines are correct. On books it was **not** tuned on it is
+lower: about 78% / 67% / 58% on clean modern prints, and much lower on old, low-resolution or
+damaged scans. Filter on *Confidence* and *Check* and review rows before using them.
 
 Command line: `python gatha_finder.py --books ./books --out ./output`
 

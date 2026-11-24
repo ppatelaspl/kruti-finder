@@ -87,8 +87,13 @@ def run_gatha(inputs, out_dir, cfg, on_progress=None, log=print, ctl=None) -> Ga
 
         prog.stage = "Finding gathas"
         emit(True)
-        lines, printed = classify_book(pages, cfg)
-        krutis = split_gathas(lines, cfg)
+        try:
+            lines, printed = classify_book(pages, cfg)
+            krutis = split_gathas(lines, cfg)
+        except Exception as e:  # noqa: BLE001 - one odd book must not lose a 200-book run
+            log(f"[{n}/{len(pdfs)}] {name}: SKIPPED - could not analyse ({type(e).__name__}: {e})")
+            skipped.append(name)
+            continue
         results.append((pdf.name, book_name(pdf), printed, krutis))
         gathas = sum(len(k.gathas) for k in krutis)
         prog.kruti_found += len(krutis)
@@ -99,7 +104,16 @@ def run_gatha(inputs, out_dir, cfg, on_progress=None, log=print, ctl=None) -> Ga
     prog.stage = "Writing Excel file"
     emit(True)
     path = os.path.join(out_dir, GATHA_FILE)
-    write_gatha_results(path, results, cfg["low_ocr_confidence"])
+    stem, ext = os.path.splitext(GATHA_FILE)
+    for k in range(2, 10):
+        try:
+            write_gatha_results(path, results, cfg["low_ocr_confidence"])
+            break
+        except PermissionError:          # the file is open in Excel: keep the run, save beside it
+            log(f"{os.path.basename(path)} is open in another program; saving as {stem} ({k}){ext}")
+            path = os.path.join(out_dir, f"{stem} ({k}){ext}")
+    else:
+        write_gatha_results(path, results, cfg["low_ocr_confidence"])
     prog.stage = "Done"
     prog.pages_done = prog.pages_total
     emit(True)

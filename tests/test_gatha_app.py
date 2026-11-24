@@ -47,3 +47,12 @@ def test_feature_one_run_locks_the_gatha_tab(window):
     assert not window.gatha_tab.start_btn.isEnabled()
     window._set_running(False)
     assert window.gatha_tab.start_btn.isEnabled()
+
+
+def test_gatha_workers_setting_is_its_own(window):
+    gt = window.gatha_tab
+    gt.settings.setValue("workers", 3)
+    gt.workers_spin.setValue(5)
+    gt.save_settings()
+    assert int(gt.settings.value("workers")) == 3          # feature 1's value is untouched
+    assert int(gt.settings.value("gatha/workers")) == 5
